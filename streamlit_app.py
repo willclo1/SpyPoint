@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 import altair as alt
 import pandas as pd
@@ -22,7 +22,6 @@ st.markdown(
       .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; }
       h1 { letter-spacing: -0.02em; margin-bottom: 0.25rem; }
       h2, h3 { letter-spacing: -0.02em; }
-      .small-muted { opacity: 0.78; font-size: 0.95rem; }
       .card {
         padding: 1rem 1.1rem;
         border-radius: 14px;
@@ -204,11 +203,6 @@ def pretty_last_modified(iso_str: str) -> str:
         return iso_str
 
 
-def week_start(d: date) -> date:
-    # Monday as start of week
-    return d - timedelta(days=d.weekday())
-
-
 # =========================
 # Load + prep (with friendly errors)
 # =========================
@@ -269,7 +263,7 @@ st.success(f"Loaded **{len(df_valid):,}** events • Updated: **{last_mod_pretty
 
 # =========================
 # Sidebar: simple controls
-# =========================
+# =========================ads
 st.sidebar.header("Filters")
 
 mode = st.sidebar.radio(
@@ -284,20 +278,16 @@ max_dt = df_valid["datetime"].max()
 default_start = min_dt.date()
 default_end = max_dt.date()
 
-# --- Quick buttons (non-tech friendly)
-
-
-# Date range picker (still available, but quick buttons handle most use)
 date_range = st.sidebar.date_input(
     "Date range",
-    value=(quick_start, quick_end),
+    value=(default_start, default_end),
 )
 
 # Normalize date_range
 if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
     start_date, end_date = date_range
 else:
-    start_date = date_range if isinstance(date_range, date) else quick_start
+    start_date = date_range if isinstance(date_range, date) else default_start
     end_date = start_date
 
 if start_date > end_date:
@@ -370,7 +360,6 @@ left, right = st.columns([2.2, 1])
 with left:
     st.subheader("Patterns (easy to read)")
 
-    # ---- Chart 1: timeline scatter (clear, big dots)
     st.markdown("**1) When things happen (time vs temperature)**")
 
     chart_source = data.dropna(subset=["temp_f"]).copy()
@@ -378,7 +367,6 @@ with left:
         st.info("No valid temperature values in this filter window. (Can’t plot temp chart.)")
     else:
         # Force readable y-axis scale: at least 10°F to 90°F
-        # Expand beyond those if your data is outside that range.
         filtered_temps = chart_source["temp_f"].dropna()
         min_temp = float(filtered_temps.min()) if not filtered_temps.empty else 10.0
         max_temp = float(filtered_temps.max()) if not filtered_temps.empty else 90.0
@@ -426,10 +414,8 @@ with left:
             .interactive()
         )
         st.altair_chart(scatter, use_container_width=True)
+        st.caption("Temperature scale always shows at least **10°F to 90°F** (and expands if needed).")
 
-        st.caption(f"Temperature scale is always shown from at least **10°F to 90°F** (and expands if needed).")
-
-    # ---- Chart 2: time patterns (hour + weekday)
     st.markdown("**2) Time patterns (when most activity happens)**")
 
     patt = data.copy()
@@ -529,7 +515,6 @@ with right:
             "Fix: share the images folder with the service account and set `gdrive.images_folder_id` in Streamlit secrets."
         )
 
-    # Preview (safe)
     if fid:
         show_preview = st.toggle("Show photo preview here", value=True)
         if show_preview:
