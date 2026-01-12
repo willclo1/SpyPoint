@@ -1,5 +1,29 @@
+# streamlit_app.py
+# Ranch Activity Dashboard — clean, non-technical, pattern-focused
+#
+# Pulls events.csv from Google Drive (service account) + optionally indexes an images folder
+# so each event can open/preview the corresponding image.
+#
+# Requires secrets:
+#   [gdrive]
+#   file_id = "...."                # Drive file id for events.csv
+#   images_folder_id = "...."       # OPTIONAL: Drive folder containing images
+#
+#   [gcp_service_account]
+#   type="service_account"
+#   project_id="..."
+#   private_key_id="..."
+#   private_key="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+#   client_email="..."
+#   client_id="..."
+#   token_uri="https://oauth2.googleapis.com/token"
+#   ... (the rest is ok too)
+#
+# Optional:
+#   cache_ttl_seconds = 21600  # 6 hours
+
 import io
-from datetime import datetime, date
+from datetime import datetime
 
 import altair as alt
 import pandas as pd
@@ -8,52 +32,62 @@ import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from googleapiclient.errors import HttpError
 
 
-# =========================
-# Page setup (simple + readable)
-# =========================
-st.set_page_config(page_title="Ranch Camera Dashboard", page_icon="🦌", layout="wide")
+# ---------------------------
+# Page config + subtle polish
+# ---------------------------
+st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; }
-      h1 { letter-spacing: -0.02em; margin-bottom: 0.25rem; }
-      h2, h3 { letter-spacing: -0.02em; }
+      .block-container { padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1180px; }
+      h1, h2, h3 { letter-spacing: -0.02em; }
+      .small-muted { opacity: 0.75; font-size: 0.92rem; }
       .card {
         padding: 1rem 1.1rem;
         border-radius: 14px;
         border: 1px solid rgba(255,255,255,0.10);
         background: rgba(255,255,255,0.03);
       }
-      div[data-testid="stMetricValue"] { font-size: 1.7rem; }
-      div[data-testid="stMetricLabel"] { font-size: 0.95rem; opacity: 0.8; }
+      div[data-testid="stMetricValue"] { font-size: 1.6rem; }
+      div[data-testid="stMetricLabel"] { font-size: 0.95rem; opacity: 0.75; }
       .stDataFrame { border-radius: 14px; overflow: hidden; }
       .stAlert { border-radius: 14px; }
       section[data-testid="stSidebar"] { padding-top: 1rem; }
-      label { font-weight: 600 !important; }
+      button[kind="secondary"] { border-radius: 10px; }
+      button[kind="primary"] { border-radius: 10px; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("Ranch Camera Dashboard")
-st.caption("Simple patterns over time (temperature + time). Pick an event to view the photo.")
+st.title("Ranch Activity")
+st.caption("Patterns in wildlife, people, and vehicles over time. Select a sighting to view the photo.")
 
 
-# =========================
-# Secrets (Google Drive)
-# =========================
-DRIVE_FILE_ID = st.secrets["gdrive"]["file_id"]
+# ---------------------------
+# Secrets / settings
+# ---------------------------
+def _require_secret(path: str):
+    parts = path.split(".")
+    cur = st.secrets
+    for p in parts:
+        if p not in cur:
+            raise KeyError(f"Missing secret: {path}")
+        cur = cur[p]
+    return cur
+
+
+DRIVE_FILE_ID = _require_secret("gdrive.file_id")
 IMAGES_FOLDER_ID = (st.secrets.get("gdrive", {}).get("images_folder_id") or "").strip()
 CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
 
 
-# =========================
+# ---------------------------
 # Google Drive helpers
-# =========================
+# ---------------------------
 def _drive_client():
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
@@ -67,9 +101,11 @@ def _download_drive_file_bytes(service, file_id: str) -> bytes:
     request = service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
+
     done = False
     while not done:
         _, done = downloader.next_chunk()
+
     fh.seek(0)
     return fh.read()
 
@@ -94,10 +130,12 @@ def list_images_in_folder(folder_id: str) -> dict:
     """
     if not folder_id:
         return {}
+
     service = _drive_client()
     out = {}
     page_token = None
     fields = "nextPageToken, files(id,name,webViewLink,trashed)"
+
     q = f"'{folder_id}' in parents and trashed=false"
 
     while True:
@@ -106,13 +144,16 @@ def list_images_in_folder(folder_id: str) -> dict:
             .list(q=q, fields=fields, pageToken=page_token, pageSize=1000)
             .execute()
         )
+
         for f in resp.get("files", []):
             name = f.get("name", "")
             if name:
                 out[name] = {"id": f.get("id", ""), "webViewLink": f.get("webViewLink", "")}
+
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
+
     return out
 
 
@@ -128,45 +169,49 @@ def resolve_image_link(row: pd.Series, image_map: dict) -> tuple[str, str]:
       2) image_drive_id column
       3) filename lookup in images folder index
     """
-    try:
-        if "image_url" in row.index and str(row.get("image_url", "")).strip():
-            return str(row["image_url"]).strip(), ""
-        if "image_drive_id" in row.index and str(row.get("image_drive_id", "")).strip():
-            fid = str(row["image_drive_id"]).strip()
-            return drive_view_url(fid), fid
+    # 1) direct URL in CSV
+    if "image_url" in row.index and str(row.get("image_url", "")).strip():
+        return str(row["image_url"]).strip(), ""
 
-        fn = str(row.get("filename", "")).strip()
-        if fn and fn in image_map:
-            fid = image_map[fn].get("id", "")
-            url = image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
-            return url, fid
-    except Exception:
-        pass
+    # 2) direct fileId in CSV
+    if "image_drive_id" in row.index and str(row.get("image_drive_id", "")).strip():
+        fid = str(row["image_drive_id"]).strip()
+        return drive_view_url(fid), fid
+
+    # 3) fallback: lookup by filename in images folder index
+    fn = str(row.get("filename", "")).strip()
+    if fn and fn in image_map:
+        fid = image_map[fn].get("id", "")
+        url = image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
+        return url, fid
 
     return "", ""
 
 
-# =========================
-# Data cleaning (keep simple, avoid surprises)
-# =========================
+# ---------------------------
+# Cleaning helpers (robust)
+# ---------------------------
 def _after_last_semicolon(s: str) -> str:
+    if s is None:
+        return ""
+    s = str(s).strip()
     if not s:
         return ""
-    parts = [p.strip() for p in str(s).split(";") if p.strip()]
-    return parts[-1] if parts else str(s).strip()
+    parts = [p.strip() for p in s.split(";") if p.strip()]
+    return parts[-1] if parts else s
 
 
 def normalize_species(raw: str) -> str:
     """
     Rules:
-      - contains vehicle => "vehicle"
-      - contains human/person => "human"
-      - else keep last segment after semicolons
+      - if it contains 'vehicle' => 'vehicle'
+      - if it contains 'human' or 'person' => 'human'
+      - else keep the last segment after semicolons (taxonomy strings)
     """
     if raw is None:
         return ""
     s = str(raw).strip()
-    if not s:
+    if not s or s.lower() in ("nan", "none"):
         return ""
     low = s.lower()
     if "vehicle" in low:
@@ -187,195 +232,232 @@ def normalize_event_type(raw: str) -> str:
     return s
 
 
-def safe_int(v, default=None):
-    try:
-        return int(v)
-    except Exception:
-        return default
+def build_datetime(df: pd.DataFrame) -> pd.Series:
+    # Expecting MM/DD/YYYY and HH:MM AM/PM (but we handle messy cases)
+    date_s = df.get("date", pd.Series([""] * len(df))).astype(str).fillna("")
+    time_s = df.get("time", pd.Series([""] * len(df))).astype(str).fillna("")
+    return pd.to_datetime((date_s + " " + time_s).str.strip(), errors="coerce")
 
 
-def pretty_last_modified(iso_str: str) -> str:
-    if not iso_str:
+def safe_numeric(series: pd.Series) -> pd.Series:
+    return pd.to_numeric(series, errors="coerce")
+
+
+def clamp_temp_domain(min_v: float, max_v: float) -> tuple[float, float]:
+    """
+    Ensure temperature axis is always readable:
+      at least 10°F to 90°F, expanded if data exceeds those bounds.
+    """
+    lo = min(10.0, float(min_v)) if pd.notna(min_v) else 10.0
+    hi = max(90.0, float(max_v)) if pd.notna(max_v) else 90.0
+    if hi - lo < 20:
+        # prevent squished charts
+        mid = (hi + lo) / 2
+        lo = mid - 10
+        hi = mid + 10
+    return lo, hi
+
+
+def nice_last_modified(iso: str) -> str:
+    if not iso:
         return "?"
     try:
-        return datetime.fromisoformat(iso_str.replace("Z", "+00:00")).strftime("%b %d, %Y %I:%M %p")
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%b %d, %Y %I:%M %p")
     except Exception:
-        return iso_str
+        return iso
 
 
-# =========================
-# Load + prep (with friendly errors)
-# =========================
-try:
-    with st.spinner("Loading events from Google Drive…"):
-        df = load_events_from_drive(DRIVE_FILE_ID)
-except HttpError as e:
-    st.error("Could not load events.csv from Google Drive.")
-    st.code(str(e))
-    st.stop()
-except Exception as e:
-    st.error("Something went wrong while loading events.csv.")
-    st.code(str(e))
-    st.stop()
+# ---------------------------
+# Load data
+# ---------------------------
+with st.spinner("Loading events…"):
+    df = load_events_from_drive(DRIVE_FILE_ID)
 
-last_mod_pretty = pretty_last_modified(df.attrs.get("drive_modified", ""))
+last_mod_pretty = nice_last_modified(df.attrs.get("drive_modified", ""))
 
-# Ensure columns exist
+# Normalize columns
 for col in ["date", "time", "event_type", "species", "filename"]:
-    if col not in df.columns:
-        df[col] = ""
-    df[col] = df[col].fillna("").astype(str)
+    if col in df.columns:
+        df[col] = df[col].fillna("").astype(str)
 
-# Temperature (°F)
-if "temp_f" not in df.columns:
-    df["temp_f"] = pd.NA
-df["temp_f"] = pd.to_numeric(df["temp_f"], errors="coerce")
+# Temperature (°F only)
+if "temp_f" in df.columns:
+    df["temp_f"] = safe_numeric(df["temp_f"])
+else:
+    df["temp_f"] = pd.Series([pd.NA] * len(df))
 
-# Normalize
-df["event_type"] = df["event_type"].map(normalize_event_type)
-df["species"] = df["species"].map(normalize_species)
+# Event type + species
+if "event_type" in df.columns:
+    df["event_type"] = df["event_type"].map(normalize_event_type)
+else:
+    df["event_type"] = ""
 
-# Datetime
-df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"], errors="coerce")
+if "species" in df.columns:
+    df["species"] = df["species"].map(normalize_species)
+else:
+    df["species"] = ""
 
-# Only keep graphable rows
-df_valid = df.dropna(subset=["datetime"]).copy()
-if df_valid.empty:
-    st.error("No valid date/time values were found in events.csv. (The dashboard needs date + time.)")
+# datetime
+df["datetime"] = build_datetime(df)
+
+# Fill missing temp with NA (avoid filter crashes)
+df["temp_f"] = df["temp_f"].where(df["temp_f"].notna(), pd.NA)
+
+# If event_type is missing, derive a best-effort from species
+# (keeps UI usable if CSV schema drifts)
+def _derive_type(row):
+    et = str(row.get("event_type", "")).strip().lower()
+    if et in ("animal", "human", "vehicle"):
+        return et
+    sp = str(row.get("species", "")).strip().lower()
+    if sp in ("human", "vehicle"):
+        return sp
+    if sp:
+        return "animal"
+    return ""
+
+df["event_type"] = df.apply(_derive_type, axis=1)
+
+# index photos folder (optional)
+image_map = {}
+if IMAGES_FOLDER_ID:
+    with st.spinner("Indexing photos folder…"):
+        image_map = list_images_in_folder(IMAGES_FOLDER_ID)
+
+# Basic integrity check
+valid = df.dropna(subset=["datetime"]).copy()
+if valid.empty:
+    st.error("No usable date/time data found in events.csv. Check your OCR date/time fields.")
     st.stop()
 
-# pattern fields
-df_valid["hour"] = df_valid["datetime"].dt.hour
-df_valid["weekday"] = df_valid["datetime"].dt.day_name()
-
-# Optional image folder index
-image_map = {}
-images_index_error = ""
-if IMAGES_FOLDER_ID:
-    try:
-        with st.spinner("Indexing photos folder… (cached)"):
-            image_map = list_images_in_folder(IMAGES_FOLDER_ID)
-    except Exception:
-        images_index_error = "Could not index your photos folder on Drive (permissions or API issue)."
-
-st.success(f"Loaded **{len(df_valid):,}** events • Updated: **{last_mod_pretty}**")
+st.success(f"Loaded **{len(df):,}** sightings • Updated: **{last_mod_pretty}**")
 
 
-# =========================
-# Sidebar: simple controls
-# =========================ads
+# ---------------------------
+# Sidebar controls (simple)
+# ---------------------------
 st.sidebar.header("Filters")
 
-mode = st.sidebar.radio(
-    "Show",
-    options=["Animals", "People & Vehicles"],
-    index=0,
-)
+mode = st.sidebar.radio("Show", options=["All", "Wildlife", "People", "Vehicles"], index=0)
 
-# Date defaults
-min_dt = df_valid["datetime"].min()
-max_dt = df_valid["datetime"].max()
-default_start = min_dt.date()
-default_end = max_dt.date()
+min_dt = valid["datetime"].min()
+max_dt = valid["datetime"].max()
 
 date_range = st.sidebar.date_input(
     "Date range",
-    value=(default_start, default_end),
+    value=(min_dt.date(), max_dt.date()),
+    min_value=min_dt.date(),
+    max_value=max_dt.date(),
 )
 
-# Normalize date_range
-if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-    start_date, end_date = date_range
-else:
-    start_date = date_range if isinstance(date_range, date) else default_start
-    end_date = start_date
-
-if start_date > end_date:
-    start_date, end_date = end_date, start_date
-
-# Temperature slider
-t_series = df_valid["temp_f"].dropna()
-if t_series.empty:
-    st.sidebar.warning("No temperature values found. Charts will show without temp filtering.")
+# Temp range (handle missing temps gracefully)
+temp_series = valid["temp_f"].dropna()
+if temp_series.empty:
+    st.sidebar.warning("No temperature data found. Temperature charts will still work but may be empty.")
     temp_range = None
 else:
-    tmin = safe_int(t_series.min(), 0)
-    tmax = safe_int(t_series.max(), 100)
-    if tmin is None or tmax is None or tmin >= tmax:
-        tmin, tmax = 0, 100
+    # Use observed min/max for slider bounds (clamped in charts separately)
+    tmin = int(temp_series.min())
+    tmax = int(temp_series.max())
+    if tmin == tmax:
+        tmin -= 1
+        tmax += 1
     temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax))
 
-# Species filter (Animals only)
+# Species filter (only meaningful for Wildlife; still safe in other modes)
 species_filter = []
-if mode == "Animals":
-    animal_species = sorted(
-        [s for s in df_valid.loc[df_valid["event_type"] == "animal", "species"].unique()
-         if s and s not in ("human", "vehicle")]
-    )
-    if animal_species:
-        species_filter = st.sidebar.multiselect("Species (animals)", options=animal_species, default=[])
-    else:
-        st.sidebar.caption("No animal species labels available yet.")
+wild_species = sorted(
+    s for s in valid["species"].dropna().astype(str).unique().tolist()
+    if s and s not in ("human", "vehicle")
+)
+if mode in ("All", "Wildlife") and wild_species:
+    species_filter = st.sidebar.multiselect("Species (wildlife)", options=wild_species, default=[])
 
-st.sidebar.caption(f"Auto-refresh cache: {CACHE_TTL_SECONDS//3600}h")
+st.sidebar.markdown(f"<div class='small-muted'>Cache: {CACHE_TTL_SECONDS//3600}h</div>", unsafe_allow_html=True)
 
 
-# =========================
-# Apply filters safely
-# =========================
-base = df_valid.copy()
+# ---------------------------
+# Apply filters (robust)
+# ---------------------------
+base = df.dropna(subset=["datetime"]).copy()
 
-# date filter
-base = base[(base["datetime"].dt.date >= start_date) & (base["datetime"].dt.date <= end_date)]
+# Date filter (safe)
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    start, end = date_range
+    base = base[(base["datetime"].dt.date >= start) & (base["datetime"].dt.date <= end)]
 
-# temp filter
+# Temp filter (safe)
 if temp_range is not None:
     lo, hi = temp_range
-    base = base[(base["temp_f"].notna()) & (base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
+    # Only filter rows where temp exists; keep rows with missing temp out of temp-based charts later
+    base = base[base["temp_f"].notna()]
+    base = base[(base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
 
-# mode filter
-if mode == "Animals":
-    data = base[base["event_type"] == "animal"].copy()
-    if species_filter:
-        data = data[data["species"].isin(species_filter)]
-else:
-    data = base[base["event_type"].isin(["human", "vehicle"])].copy()
+# Mode filter
+if mode == "Wildlife":
+    base = base[base["event_type"] == "animal"]
+elif mode == "People":
+    base = base[base["event_type"] == "human"]
+elif mode == "Vehicles":
+    base = base[base["event_type"] == "vehicle"]
 
-# KPIs
-k1, k2, k3 = st.columns(3)
-k1.metric("Events in range", f"{len(data):,}")
-k2.metric("Start", str(start_date))
-k3.metric("End", str(end_date))
+# Species filter (wildlife only)
+if species_filter:
+    base = base[base["species"].isin(species_filter)]
 
-if data.empty:
-    st.info("No events match your filters. Try expanding the date range, temperature range, or clearing species filters.")
+if base.empty:
+    st.info("No sightings match your filters. Try expanding the date range or temperature range.")
     st.stop()
 
 
-# =========================
-# Main layout: Patterns + Photo viewer
-# =========================
-left, right = st.columns([2.2, 1])
+# ---------------------------
+# Summary strip (simple KPIs)
+# ---------------------------
+total = len(base)
+wildlife_count = int((base["event_type"] == "animal").sum())
+people_count = int((base["event_type"] == "human").sum())
+vehicle_count = int((base["event_type"] == "vehicle").sum())
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total Sightings", f"{total:,}")
+m2.metric("Wildlife", f"{wildlife_count:,}")
+m3.metric("People", f"{people_count:,}")
+m4.metric("Vehicles", f"{vehicle_count:,}")
+
+
+# ---------------------------
+# Main layout: patterns + photo viewer
+# ---------------------------
+left, right = st.columns([2.15, 1])
+
+# Chart defaults
+DOT_SIZE = 240  # big, readable
+OPACITY = 0.86
+
+# Stable temp axis: 10–90 minimum, expanded if needed
+temp_min = base["temp_f"].min() if base["temp_f"].notna().any() else 10
+temp_max = base["temp_f"].max() if base["temp_f"].notna().any() else 90
+Y_LO, Y_HI = clamp_temp_domain(temp_min, temp_max)
+
 
 with left:
-    st.subheader("Patterns (easy to read)")
+    st.subheader("Activity Over Time")
+    st.caption("Each dot is a sighting. Temperature is shown in °F.")
 
-    st.markdown("**1) When things happen (time vs temperature)**")
-
-    chart_source = data.dropna(subset=["temp_f"]).copy()
-    if chart_source.empty:
-        st.info("No valid temperature values in this filter window. (Can’t plot temp chart.)")
+    # --- Main scatter
+    chart_df = base.dropna(subset=["datetime", "temp_f"]).copy()
+    if chart_df.empty:
+        st.info("No temperature data available for charting in this filter window.")
     else:
-        # Force readable y-axis scale: at least 10°F to 90°F
-        filtered_temps = chart_source["temp_f"].dropna()
-        min_temp = float(filtered_temps.min()) if not filtered_temps.empty else 10.0
-        max_temp = float(filtered_temps.max()) if not filtered_temps.empty else 90.0
-        y_min = min(10.0, min_temp)
-        y_max = max(90.0, max_temp)
+        # Keep wildlife readable without rainbow overload
+        if mode in ("Wildlife",) or (mode == "All" and wildlife_count > 0):
+            # Only group species for animal rows; keep people/vehicles separate labels
+            cd = chart_df.copy()
+            cd["kind"] = cd["event_type"].map({"animal": "Wildlife", "human": "People", "vehicle": "Vehicles"}).fillna("Other")
 
-        if mode == "Animals":
+            # Species grouping only for wildlife rows
             top_species = (
-                chart_source[chart_source["species"].notna() & (chart_source["species"] != "")]
+                cd[(cd["event_type"] == "animal") & (cd["species"] != "")]
                 .groupby("species")
                 .size()
                 .sort_values(ascending=False)
@@ -383,154 +465,210 @@ with left:
                 .index
                 .tolist()
             )
-            chart_source["species_group"] = chart_source["species"].where(chart_source["species"].isin(top_species), other="Other")
-            color_field = "species_group:N"
-            color_title = "Species"
+            cd["label"] = cd.apply(
+                lambda r: (r["species"] if r["event_type"] == "animal" else r["kind"]),
+                axis=1,
+            )
+            cd["label"] = cd.apply(
+                lambda r: (r["label"] if (r["event_type"] != "animal" or r["label"] in top_species) else "Other wildlife"),
+                axis=1,
+            )
+
+            color_field = "label:N"
+            color_title = "Group"
             tooltip = [
-                "filename:N",
                 alt.Tooltip("datetime:T", title="Time"),
-                alt.Tooltip("temp_f:Q", title="Temp (°F)"),
+                alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
+                alt.Tooltip("kind:N", title="Type"),
                 alt.Tooltip("species:N", title="Species"),
+                alt.Tooltip("filename:N", title="File"),
             ]
+            plot_df = cd
         else:
-            color_field = "event_type:N"
+            # People-only or Vehicles-only
+            plot_df = chart_df.copy()
+            plot_df["kind"] = plot_df["event_type"].map({"animal": "Wildlife", "human": "People", "vehicle": "Vehicles"}).fillna("")
+            color_field = "kind:N"
             color_title = "Type"
             tooltip = [
-                "filename:N",
                 alt.Tooltip("datetime:T", title="Time"),
-                alt.Tooltip("temp_f:Q", title="Temp (°F)"),
-                alt.Tooltip("event_type:N", title="Type"),
+                alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
+                alt.Tooltip("kind:N", title="Type"),
+                alt.Tooltip("filename:N", title="File"),
             ]
 
         scatter = (
-            alt.Chart(chart_source)
-            .mark_circle(size=220, opacity=0.85)
+            alt.Chart(plot_df)
+            .mark_circle(size=DOT_SIZE, opacity=OPACITY)
             .encode(
                 x=alt.X("datetime:T", title="Time"),
-                y=alt.Y("temp_f:Q", title="Temp (°F)", scale=alt.Scale(domain=[y_min, y_max])),
+                y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[Y_LO, Y_HI])),
                 color=alt.Color(color_field, title=color_title),
                 tooltip=tooltip,
             )
             .interactive()
         )
         st.altair_chart(scatter, use_container_width=True)
-        st.caption("Temperature scale always shows at least **10°F to 90°F** (and expands if needed).")
 
-    st.markdown("**2) Time patterns (when most activity happens)**")
+    st.markdown("---")
+    st.subheader("Patterns")
+    st.caption("Simple views that answer: *What time? What day? What temps?*")
 
-    patt = data.copy()
+    patt = base.dropna(subset=["datetime"]).copy()
+    patt = patt.dropna(subset=["temp_f"])  # patterns depend on temperature/time
+
+    patt["hour"] = patt["datetime"].dt.hour
+    patt["weekday"] = patt["datetime"].dt.day_name()
+
+    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     # Events by hour
-    by_hour = (
-        patt.groupby("hour")
-        .size()
-        .reset_index(name="events")
-        .sort_values("hour")
-    )
+    by_hour = patt.groupby("hour").size().reset_index(name="Sightings").sort_values("hour")
     hour_chart = (
         alt.Chart(by_hour)
         .mark_bar()
         .encode(
-            x=alt.X("hour:O", title="Hour of Day (0=midnight • 12=noon • 23=11pm)", axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("events:Q", title="Number of Events"),
-            tooltip=[alt.Tooltip("hour:O", title="Hour"), alt.Tooltip("events:Q", title="Events")],
+            x=alt.X("hour:O", title="Hour of Day", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("Sightings:Q", title="Sightings"),
+            tooltip=[alt.Tooltip("hour:O", title="Hour"), alt.Tooltip("Sightings:Q", title="Sightings")],
         )
     )
 
     # Events by weekday
-    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     by_day = (
         patt.groupby("weekday")
         .size()
         .reindex(weekday_order, fill_value=0)
-        .reset_index(name="events")
+        .reset_index(name="Sightings")
     )
-    by_day.columns = ["weekday", "events"]
+    by_day.columns = ["weekday", "Sightings"]
 
     day_chart = (
         alt.Chart(by_day)
         .mark_bar()
         .encode(
             y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-            x=alt.X("events:Q", title="Number of Events"),
-            tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("events:Q", title="Events")],
+            x=alt.X("Sightings:Q", title="Sightings"),
+            tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("Sightings:Q", title="Sightings")],
+        )
+    )
+
+    # Typical temperature by hour (median)
+    by_hour_temp = patt.groupby("hour")["temp_f"].median().reset_index(name="Typical Temp (°F)").sort_values("hour")
+    temp_chart = (
+        alt.Chart(by_hour_temp)
+        .mark_line(point=alt.OverlayMarkDef(size=70))
+        .encode(
+            x=alt.X("hour:O", title="Hour of Day", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("Typical Temp (°F):Q", title="Typical Temperature (°F)", scale=alt.Scale(domain=[Y_LO, Y_HI])),
+            tooltip=[
+                alt.Tooltip("hour:O", title="Hour"),
+                alt.Tooltip("Typical Temp (°F):Q", title="Median Temp (°F)", format=".1f"),
+            ],
         )
     )
 
     cA, cB = st.columns(2)
     with cA:
-        st.markdown("**Events by hour**")
+        st.markdown("**Time of Day**")
         st.altair_chart(hour_chart, use_container_width=True)
     with cB:
-        st.markdown("**Events by day of week**")
+        st.markdown("**Day of Week**")
         st.altair_chart(day_chart, use_container_width=True)
 
-    st.caption("Tip: Use these to spot routines (like deer at dawn, or vehicles mid-day).")
+    st.markdown("**Typical Temperature**")
+    st.altair_chart(temp_chart, use_container_width=True)
+
 
 with right:
-    st.subheader("Photo Viewer")
+    st.subheader("View a Sighting")
+    st.caption("Pick a time → see the photo and key details.")
 
-    if images_index_error:
-        st.warning(images_index_error)
+    view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
-    view = data.sort_values("datetime", ascending=False).copy()
+    # Friendly label for dropdown
+    def _row_label(r):
+        when = r["datetime"].strftime("%b %d • %I:%M %p")
+        t = f"{int(round(r['temp_f']))}°F" if pd.notna(r.get("temp_f")) else "—"
+        et = r.get("event_type", "")
+        if et == "animal":
+            kind = "Wildlife"
+            spec = r.get("species", "") or "Unknown"
+            return f"{when} • {spec} • {t}"
+        if et == "human":
+            return f"{when} • People • {t}"
+        if et == "vehicle":
+            return f"{when} • Vehicle • {t}"
+        return f"{when} • Sighting • {t}"
 
-    def _label_for_row(r):
-        when = r["datetime"].strftime("%b %d %I:%M %p") if pd.notna(r["datetime"]) else "Unknown time"
-        temp = ""
-        if pd.notna(r.get("temp_f", pd.NA)):
-            try:
-                temp = f"{int(round(float(r['temp_f'])))}°F"
-            except Exception:
-                temp = ""
-        what = (r.get("species", "") or "Unknown animal") if mode == "Animals" else (r.get("event_type", "") or "Unknown")
-        return f"{when} • {what} • {temp}".strip(" •")
+    view["label"] = view.apply(_row_label, axis=1)
 
-    view["label"] = view.apply(_label_for_row, axis=1)
-
-    chosen = st.selectbox(
-        "Pick an event",
+    chosen_idx = st.selectbox(
+        "Select a sighting",
         options=view.index.tolist(),
-        format_func=lambda i: view.loc[i, "label"] if i in view.index else "Event",
+        format_func=lambda i: view.loc[i, "label"],
     )
 
-    row = view.loc[chosen]
+    row = view.loc[chosen_idx]
     url, fid = resolve_image_link(row, image_map)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
+
     st.markdown(f"**When:** {row.get('datetime')}")
-    if pd.notna(row.get("temp_f", pd.NA)):
-        st.markdown(f"**Temp:** {row.get('temp_f')} °F")
-    if mode == "Animals":
-        st.markdown(f"**Species:** {row.get('species') or 'Unknown'}")
+    if pd.notna(row.get("temp_f")):
+        st.markdown(f"**Temperature:** {int(round(float(row.get('temp_f'))))} °F")
     else:
-        st.markdown(f"**Type:** {row.get('event_type') or 'Unknown'}")
-    st.markdown(f"**File:** `{row.get('filename','')}`")
+        st.markdown("**Temperature:** —")
+
+    et = row.get("event_type", "")
+    if et == "animal":
+        st.markdown(f"**Type:** Wildlife")
+        st.markdown(f"**Species:** {row.get('species') or 'Unknown'}")
+    elif et == "human":
+        st.markdown("**Type:** People")
+    elif et == "vehicle":
+        st.markdown("**Type:** Vehicle")
+    else:
+        st.markdown("**Type:** Sighting")
 
     if url:
         st.link_button("Open photo in Google Drive", url)
     else:
         st.warning(
-            "I can’t link this photo yet.\n\n"
-            "Fix: share the images folder with the service account and set `gdrive.images_folder_id` in Streamlit secrets."
+            "Photo link not available.\n\n"
+            "Fix options:\n"
+            "• Add `image_drive_id` or `image_url` columns to events.csv\n"
+            "• Or set `gdrive.images_folder_id` in secrets and share that folder with the service account"
         )
 
-    if fid:
-        show_preview = st.toggle("Show photo preview here", value=True)
-        if show_preview:
-            try:
-                service = _drive_client()
-                img_bytes = _download_drive_file_bytes(service, fid)
-                st.image(img_bytes, use_container_width=True)
-            except HttpError as e:
-                st.error("Could not load the preview from Google Drive (permission or API issue).")
-                st.code(str(e))
-            except Exception as e:
-                st.error(f"Could not load preview: {e}")
+    # Preview (simple, optional)
+    show_preview = st.toggle("Show photo preview", value=True, help="Shows the photo here on the page.")
+    if show_preview and fid:
+        try:
+            service = _drive_client()
+            img_bytes = _download_drive_file_bytes(service, fid)
+            st.image(img_bytes, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not load preview: {e}")
 
     st.markdown("</div>", unsafe_allow_html=True)
-    st.caption("This view shows only the important details + the photo.")
 
+    with st.expander("All Sightings (table)", expanded=False):
+        table_cols = []
+        for c in ["datetime", "temp_f", "event_type", "species", "filename"]:
+            if c in base.columns:
+                table_cols.append(c)
+        # Human-friendly values
+        tdf = base.copy()
+        tdf["type"] = tdf["event_type"].map({"animal": "Wildlife", "human": "People", "vehicle": "Vehicle"}).fillna("")
+        if "event_type" in table_cols:
+            table_cols = [c for c in table_cols if c != "event_type"]
+            table_cols.insert(2, "type")
+        st.dataframe(
+            tdf.sort_values("datetime", ascending=False)[table_cols],
+            use_container_width=True,
+            hide_index=True,
+        )
 
 st.divider()
 st.caption(
