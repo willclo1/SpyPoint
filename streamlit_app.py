@@ -10,51 +10,48 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 
-# ---------------------------
-# Page config + small UI polish
-# ---------------------------
+# =========================
+# Page setup (simple + readable)
+# =========================
 st.set_page_config(page_title="Ranch Camera Dashboard", page_icon="🦌", layout="wide")
 
 st.markdown(
     """
     <style>
-      .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+      .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; }
       h1, h2, h3 { letter-spacing: -0.02em; }
-      div[data-testid="stMetricValue"] { font-size: 1.6rem; }
-      div[data-testid="stMetricLabel"] { font-size: 0.9rem; opacity: 0.8; }
-      .stDataFrame { border-radius: 12px; overflow: hidden; }
-      .stAlert { border-radius: 12px; }
-      section[data-testid="stSidebar"] { padding-top: 1rem; }
-      .small-muted { opacity: 0.75; font-size: 0.9rem; }
+      .small-muted { opacity: 0.78; font-size: 0.95rem; }
       .card {
-        padding: 0.9rem 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.08);
-        background: rgba(255,255,255,0.02);
+        padding: 1rem 1.1rem;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.03);
       }
+      div[data-testid="stMetricValue"] { font-size: 1.7rem; }
+      div[data-testid="stMetricLabel"] { font-size: 0.95rem; opacity: 0.8; }
+      .stDataFrame { border-radius: 14px; overflow: hidden; }
+      .stAlert { border-radius: 14px; }
+      section[data-testid="stSidebar"] { padding-top: 1rem; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.title("Ranch Camera Dashboard")
-st.caption("📌 events.csv pulled from Google Drive")
+st.caption("Simple patterns over time (temperature + time). Click an event to see the photo.")
 
 
-# ---------------------------
-# Settings (secrets)
-# ---------------------------
+# =========================
+# Secrets (Google Drive)
+# =========================
 DRIVE_FILE_ID = st.secrets["gdrive"]["file_id"]
+IMAGES_FOLDER_ID = (st.secrets.get("gdrive", {}).get("images_folder_id") or "").strip()
 CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
 
-# Optional: folder that contains the original images on Drive
-# If provided, the app will map filename -> Drive fileId automatically.
-IMAGES_FOLDER_ID = (st.secrets.get("gdrive", {}).get("images_folder_id") or "").strip()
 
-
-# ---------------------------
-# Google Drive client + helpers
-# ---------------------------
+# =========================
+# Google Drive helpers
+# =========================
 def _drive_client():
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
@@ -68,11 +65,9 @@ def _download_drive_file_bytes(service, file_id: str) -> bytes:
     request = service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
-
     done = False
     while not done:
         _, done = downloader.next_chunk()
-
     fh.seek(0)
     return fh.read()
 
@@ -81,10 +76,8 @@ def _download_drive_file_bytes(service, file_id: str) -> bytes:
 def load_events_from_drive(file_id: str) -> pd.DataFrame:
     service = _drive_client()
     meta = service.files().get(fileId=file_id, fields="name,modifiedTime,size").execute()
-
     raw = _download_drive_file_bytes(service, file_id)
     df = pd.read_csv(io.BytesIO(raw))
-
     df.attrs["drive_name"] = meta.get("name", "events.csv")
     df.attrs["drive_modified"] = meta.get("modifiedTime", "")
     df.attrs["drive_size"] = meta.get("size", "")
@@ -95,42 +88,27 @@ def load_events_from_drive(file_id: str) -> pd.DataFrame:
 def list_images_in_folder(folder_id: str) -> dict:
     """
     Returns dict: { filename: {id, webViewLink} }
-    NOTE: Works best if all images are in ONE folder on Drive.
     """
     if not folder_id:
         return {}
-
     service = _drive_client()
     out = {}
     page_token = None
-
-    # Only fetch what we need
-    fields = "nextPageToken, files(id,name,webViewLink,mimeType,trashed)"
-
-    # Query for files in folder
+    fields = "nextPageToken, files(id,name,webViewLink,trashed)"
     q = f"'{folder_id}' in parents and trashed=false"
-
     while True:
         resp = (
             service.files()
-            .list(
-                q=q,
-                fields=fields,
-                pageToken=page_token,
-                pageSize=1000,
-            )
+            .list(q=q, fields=fields, pageToken=page_token, pageSize=1000)
             .execute()
         )
-
         for f in resp.get("files", []):
             name = f.get("name", "")
             if name:
                 out[name] = {"id": f.get("id", ""), "webViewLink": f.get("webViewLink", "")}
-
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
-
     return out
 
 
@@ -138,9 +116,31 @@ def drive_view_url(file_id: str) -> str:
     return f"https://drive.google.com/file/d/{file_id}/view"
 
 
-# ---------------------------
-# Cleaning helpers
-# ---------------------------
+def resolve_image_link(row: pd.Series, image_map: dict) -> tuple[str, str]:
+    """
+    Returns (url, file_id)
+    Priority:
+      1) image_url column
+      2) image_drive_id column
+      3) filename lookup in images folder index
+    """
+    if "image_url" in row.index and str(row.get("image_url", "")).strip():
+        return str(row["image_url"]).strip(), ""
+    if "image_drive_id" in row.index and str(row.get("image_drive_id", "")).strip():
+        fid = str(row["image_drive_id"]).strip()
+        return drive_view_url(fid), fid
+
+    fn = str(row.get("filename", "")).strip()
+    if fn and fn in image_map:
+        fid = image_map[fn].get("id", "")
+        url = image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
+        return url, fid
+    return "", ""
+
+
+# =========================
+# Data cleaning (keep simple)
+# =========================
 def _after_last_semicolon(s: str) -> str:
     if not s:
         return ""
@@ -149,19 +149,23 @@ def _after_last_semicolon(s: str) -> str:
 
 
 def normalize_species(raw: str) -> str:
-    """If contains vehicle/human/person anywhere -> normalize. Else keep only after last semicolon."""
+    """
+    Your labels sometimes come like: "a;b;c;vehicle" etc.
+    Rules:
+      - if it contains vehicle => "vehicle"
+      - if it contains human/person => "human"
+      - else keep the last segment after semicolons
+    """
     if raw is None:
         return ""
     s = str(raw).strip()
     if not s:
         return ""
-
     low = s.lower()
     if "vehicle" in low:
         return "vehicle"
     if "human" in low or "person" in low:
         return "human"
-
     return _after_last_semicolon(s)
 
 
@@ -180,14 +184,10 @@ def build_datetime(df: pd.DataFrame) -> pd.Series:
     return pd.to_datetime(df["date"].astype(str) + " " + df["time"].astype(str), errors="coerce")
 
 
-def safe_float_series(s: pd.Series) -> pd.Series:
-    return pd.to_numeric(s, errors="coerce")
-
-
-# ---------------------------
-# Load data
-# ---------------------------
-with st.spinner("Loading events.csv from Google Drive…"):
+# =========================
+# Load + prep
+# =========================
+with st.spinner("Loading events from Google Drive…"):
     df = load_events_from_drive(DRIVE_FILE_ID)
 
 last_mod = df.attrs.get("drive_modified", "")
@@ -196,14 +196,13 @@ try:
 except Exception:
     last_mod_pretty = last_mod or "?"
 
-st.success(f"Loaded **{len(df):,}** rows • Last modified: **{last_mod_pretty}**")
-
+# normalize important columns only
 for col in ["date", "time", "event_type", "species", "filename"]:
     if col in df.columns:
         df[col] = df[col].fillna("").astype(str)
 
 if "temp_f" in df.columns:
-    df["temp_f"] = safe_float_series(df["temp_f"])
+    df["temp_f"] = pd.to_numeric(df["temp_f"], errors="coerce")
 
 if "event_type" in df.columns:
     df["event_type"] = df["event_type"].map(normalize_event_type)
@@ -211,353 +210,234 @@ if "event_type" in df.columns:
 if "species" in df.columns:
     df["species"] = df["species"].map(normalize_species)
 
-for i in (1, 2, 3):
-    c = f"top{i}_species"
-    if c in df.columns:
-        df[c] = df[c].fillna("").astype(str).map(normalize_species)
-
 if "date" in df.columns and "time" in df.columns:
     df["datetime"] = build_datetime(df)
 else:
     df["datetime"] = pd.NaT
 
+# extra columns for “pattern” views
+df["hour"] = df["datetime"].dt.hour
+df["day"] = df["datetime"].dt.date
 
-# ---------------------------
-# Image link mapping (optional)
-# ---------------------------
-# Preferred: events.csv has image_drive_id or image_url
-# Fallback: map by filename using a Drive folder listing
+# Load image index (optional)
 image_map = {}
 if IMAGES_FOLDER_ID:
-    with st.spinner("Indexing image folder on Google Drive… (cached)"):
+    with st.spinner("Indexing photos folder… (cached)"):
         image_map = list_images_in_folder(IMAGES_FOLDER_ID)
 
-
-def resolve_image_link(row: pd.Series) -> tuple[str, str]:
-    """
-    Returns: (url, file_id)
-    """
-    # 1) direct URL in CSV
-    if "image_url" in row.index and str(row.get("image_url", "")).strip():
-        return str(row["image_url"]).strip(), ""
-
-    # 2) direct fileId in CSV
-    if "image_drive_id" in row.index and str(row.get("image_drive_id", "")).strip():
-        fid = str(row["image_drive_id"]).strip()
-        return drive_view_url(fid), fid
-
-    # 3) fallback: lookup by filename in images folder index
-    fn = str(row.get("filename", "")).strip()
-    if fn and fn in image_map:
-        fid = image_map[fn].get("id", "")
-        url = image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
-        return url, fid
-
-    return "", ""
+st.success(f"Loaded **{len(df):,}** events • Updated: **{last_mod_pretty}**")
 
 
-# ---------------------------
-# Sidebar filters (global)
-# ---------------------------
-st.sidebar.header("Filters")
+# =========================
+# Sidebar: simple controls
+# =========================
+st.sidebar.header("What do you want to look at?")
 
-df_dt = df.dropna(subset=["datetime"]).copy()
-if not df_dt.empty:
-    min_dt = df_dt["datetime"].min()
-    max_dt = df_dt["datetime"].max()
-    date_range = st.sidebar.date_input("Date range", value=(min_dt.date(), max_dt.date()))
-else:
-    date_range = None
-    st.sidebar.info("No valid datetime values found.")
-
-# Temp filter (°F only)
-temp_minmax = None
-if "temp_f" in df.columns and df["temp_f"].notna().any():
-    tmin = int(df["temp_f"].min())
-    tmax = int(df["temp_f"].max())
-    temp_minmax = st.sidebar.slider("Temp (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax))
-
-st.sidebar.markdown(
-    f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>',
-    unsafe_allow_html=True,
+mode = st.sidebar.radio(
+    "Show",
+    options=["Animals", "People & Vehicles"],
+    index=0,
 )
 
-# Apply global filters (date/temp only)
-base = df.copy()
-if date_range and "datetime" in base.columns and len(date_range) == 2:
-    start, end = date_range
-    base = base.dropna(subset=["datetime"])
-    base = base[(base["datetime"].dt.date >= start) & (base["datetime"].dt.date <= end)]
+# Date range (big + simple)
+df_dt = df.dropna(subset=["datetime"]).copy()
+if df_dt.empty:
+    st.sidebar.error("No valid date/time data found in events.csv.")
+    st.stop()
 
-if temp_minmax and "temp_f" in base.columns:
-    lo, hi = temp_minmax
-    base = base[(base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
+min_dt = df_dt["datetime"].min()
+max_dt = df_dt["datetime"].max()
 
-animals_df = base[base.get("event_type", "") == "animal"].copy() if "event_type" in base.columns else base.iloc[0:0].copy()
-hv_df = base[base.get("event_type", "").isin(["human", "vehicle"])].copy() if "event_type" in base.columns else base.iloc[0:0].copy()
+date_range = st.sidebar.date_input(
+    "Date range",
+    value=(min_dt.date(), max_dt.date()),
+)
 
+# Temperature filter
+tmin = int(df_dt["temp_f"].min()) if df_dt["temp_f"].notna().any() else 0
+tmax = int(df_dt["temp_f"].max()) if df_dt["temp_f"].notna().any() else 100
+temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax))
 
-# ---------------------------
-# KPI row (global)
-# ---------------------------
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Filtered events", f"{len(base):,}")
-k2.metric("Animals", f"{len(animals_df):,}")
-k3.metric("Humans", f"{int((hv_df.get('event_type', pd.Series(dtype=str)) == 'human').sum()):,}")
-k4.metric("Vehicles", f"{int((hv_df.get('event_type', pd.Series(dtype=str)) == 'vehicle').sum()):,}")
-
-
-# ---------------------------
-# Tabs: Animals / Humans+Vehicles / Table
-# ---------------------------
-tab_animals, tab_hv, tab_table = st.tabs(["🦌 Animals", "🚙 Humans & Vehicles", "🗂️ All Events"])
-
-DOT_SIZE = 160  # bigger dots
+# Scaling control (non-tech friendly)
+fixed_scale = st.sidebar.checkbox("Keep same chart scale", value=True)
+st.sidebar.caption("Tip: Keep this on to compare weeks easily.")
 
 
-with tab_animals:
-    st.subheader("Animals — Temp (°F) vs Time")
+# =========================
+# Filter data
+# =========================
+base = df.dropna(subset=["datetime"]).copy()
+start, end = date_range
+base = base[(base["datetime"].dt.date >= start) & (base["datetime"].dt.date <= end)]
+lo, hi = temp_range
+base = base[(base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
 
-    # Animal-only species filter
-    species_options = sorted([s for s in animals_df.get("species", pd.Series(dtype=str)).unique() if s and s not in ("human", "vehicle")])
-    chosen_species = st.multiselect("Filter animal species", options=species_options, default=[])
+if mode == "Animals":
+    data = base[base["event_type"] == "animal"].copy()
+else:
+    data = base[base["event_type"].isin(["human", "vehicle"])].copy()
 
-    a = animals_df.copy()
-    if chosen_species:
-        a = a[a["species"].isin(chosen_species)]
+# quick KPIs (only important info)
+k1, k2, k3 = st.columns(3)
+k1.metric("Events in range", f"{len(data):,}")
+k2.metric("First day", str(start))
+k3.metric("Last day", str(end))
 
-    c1, c2 = st.columns([2, 1])
 
-    with c1:
-        if not a.empty and a["datetime"].notna().any():
-            chart_df = a.dropna(subset=["datetime"]).copy()
+# =========================
+# Friendly empty state
+# =========================
+if data.empty:
+    st.info("No events match your filters. Try expanding the date range or temperature range.")
+    st.stop()
 
-            # Nice scatter: color by species (limited cardinality)
-            # If too many species, fallback to a single color by leaving color unset
-            use_color = chart_df["species"].nunique() <= 20
 
-            enc = {
-                "x": alt.X("datetime:T", title="Time"),
-                "y": alt.Y("temp_f:Q", title="Temp (°F)"),
-                "tooltip": [
-                    "filename:N",
-                    alt.Tooltip("datetime:T", title="Time"),
-                    alt.Tooltip("temp_f:Q", title="Temp (°F)"),
-                    "species:N",
-                    "species_conf:N",
-                ],
-            }
-            if use_color:
-                enc["color"] = alt.Color("species:N", title="Species")
+# =========================
+# Main layout: Patterns + Photo viewer
+# =========================
+left, right = st.columns([2.2, 1])
 
-            chart = (
-                alt.Chart(chart_df)
-                .mark_circle(size=DOT_SIZE, opacity=0.80)
-                .encode(**enc)
-                .interactive()
-            )
+with left:
+    st.subheader("Patterns")
 
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("No animal data in the current filter window.")
+    # ---- Chart 1: timeline scatter (clear, big dots)
+    st.markdown("**1) When things happen (time vs temperature)**")
 
-    with c2:
-        st.subheader("Top animal species")
-        if not a.empty and "species" in a.columns:
-            top = (
-                a[(a["species"] != "") & (~a["species"].isin(["human", "vehicle"]))]
-                .groupby("species")
-                .size()
-                .sort_values(ascending=False)
-                .head(15)
-                .reset_index(name="count")
-            )
-            if top.empty:
-                st.info("No animal species to show.")
-            else:
-                bar = (
-                    alt.Chart(top)
-                    .mark_bar()
-                    .encode(
-                        x=alt.X("count:Q", title="Count"),
-                        y=alt.Y("species:N", sort="-x", title="Species"),
-                        tooltip=["species:N", "count:Q"],
-                    )
-                )
-                st.altair_chart(bar, use_container_width=True)
+    # y-axis scaling
+    y_domain = None
+    if fixed_scale and df_dt["temp_f"].notna().any():
+        # fixed to current *filter range* so it doesn't jump around within a view
+        y_domain = [lo, hi]
 
-    st.markdown("---")
-    st.subheader("Pick an animal event → open image in Drive")
-
-    # Table with row selection (best way to “click → open image” reliably)
-    cols = [c for c in ["datetime", "temp_f", "species", "species_conf", "filename"] if c in a.columns]
-    a_table = a.sort_values(by="datetime", ascending=False) if "datetime" in a.columns else a
-
-    selection = None
-    try:
-        selection = st.dataframe(
-            a_table[cols],
-            use_container_width=True,
-            hide_index=True,
-            on_select="rerun",
-            selection_mode="single-row",
+    # color grouping: simple + predictable
+    if mode == "Animals":
+        # Too many species can overwhelm; group common ones automatically
+        top_species = (
+            data[data["species"].notna() & (data["species"] != "")]
+            .groupby("species")
+            .size()
+            .sort_values(ascending=False)
+            .head(8)
+            .index
+            .tolist()
         )
-    except TypeError:
-        # Older Streamlit fallback: use selectbox
-        st.info("Your Streamlit version doesn’t support row selection here — using a dropdown fallback.")
-        label_series = (
-            a_table["datetime"].astype(str) + " • " + a_table.get("species", "").astype(str) + " • " + a_table.get("filename", "").astype(str)
-            if "datetime" in a_table.columns
-            else a_table.get("filename", pd.Series(dtype=str)).astype(str)
-        )
-        idx = st.selectbox("Select an event", options=list(range(len(a_table))), format_func=lambda i: label_series.iloc[i] if i < len(label_series) else str(i))
-        selection = {"selection": {"rows": [idx]}}
-
-    sel_rows = (selection or {}).get("selection", {}).get("rows", [])
-    if sel_rows:
-        idx = sel_rows[0]
-        row = a_table.iloc[idx]
-        url, fid = resolve_image_link(row)
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown(f"**Selected:** `{row.get('filename','')}`")
-        st.markdown(f"- **Time:** {row.get('datetime','')}")
-        st.markdown(f"- **Temp (°F):** {row.get('temp_f','')}")
-        st.markdown(f"- **Species:** {row.get('species','')}  ({row.get('species_conf','')})")
-
-        if url:
-            st.markdown(f"🔗 **Open image in Drive:** {url}")
-        else:
-            st.warning(
-                "No Drive link available for this image.\n\n"
-                "Best fix: add `image_drive_id` (or `image_url`) to events.csv, "
-                "or set `gdrive.images_folder_id` in Streamlit secrets so the app can map filenames."
-            )
-
-        # Optional quick preview if we have a fileId
-        if fid:
-            if st.checkbox("Show image preview (downloads image from Drive)"):
-                try:
-                    service = _drive_client()
-                    img_bytes = _download_drive_file_bytes(service, fid)
-                    st.image(img_bytes, use_container_width=True)
-                except Exception as e:
-                    st.error(f"Could not preview image: {e}")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-with tab_hv:
-    st.subheader("Humans & Vehicles — completely separated from animals")
-
-    if hv_df.empty:
-        st.info("No human/vehicle events in the current filter window.")
+        data["species_group"] = data["species"].where(data["species"].isin(top_species), other="Other")
+        color_field = "species_group:N"
+        color_title = "Species"
+        tooltip = [
+            "filename:N",
+            alt.Tooltip("datetime:T", title="Time"),
+            alt.Tooltip("temp_f:Q", title="Temp (°F)"),
+            alt.Tooltip("species:N", title="Species"),
+        ]
     else:
-        # Split explicitly
-        humans = hv_df[hv_df["event_type"] == "human"].copy()
-        vehicles = hv_df[hv_df["event_type"] == "vehicle"].copy()
+        color_field = "event_type:N"
+        color_title = "Type"
+        tooltip = [
+            "filename:N",
+            alt.Tooltip("datetime:T", title="Time"),
+            alt.Tooltip("temp_f:Q", title="Temp (°F)"),
+            alt.Tooltip("event_type:N", title="Type"),
+        ]
 
-        st.markdown("### Temp (°F) vs Time")
-        chart_df = hv_df.dropna(subset=["datetime"]).copy()
-        if chart_df.empty:
-            st.info("No valid datetime values to chart.")
-        else:
-            chart = (
-                alt.Chart(chart_df)
-                .mark_circle(size=DOT_SIZE, opacity=0.85)
-                .encode(
-                    x=alt.X("datetime:T", title="Time"),
-                    y=alt.Y("temp_f:Q", title="Temp (°F)"),
-                    color=alt.Color("event_type:N", title="Type"),
-                    tooltip=[
-                        "filename:N",
-                        alt.Tooltip("datetime:T", title="Time"),
-                        alt.Tooltip("temp_f:Q", title="Temp (°F)"),
-                        "event_type:N",
-                    ],
-                )
-                .interactive()
-            )
-            st.altair_chart(chart, use_container_width=True)
-
-        st.markdown("---")
-        st.markdown("### Counts")
-        c1, c2 = st.columns(2)
-        c1.metric("Humans", f"{len(humans):,}")
-        c2.metric("Vehicles", f"{len(vehicles):,}")
-
-        st.markdown("---")
-        st.subheader("Pick a human/vehicle event → open image in Drive")
-
-        cols = [c for c in ["datetime", "temp_f", "event_type", "filename"] if c in hv_df.columns]
-        hv_table = hv_df.sort_values(by="datetime", ascending=False)
-
-        selection = None
-        try:
-            selection = st.dataframe(
-                hv_table[cols],
-                use_container_width=True,
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row",
-            )
-        except TypeError:
-            st.info("Your Streamlit version doesn’t support row selection here — using a dropdown fallback.")
-            label_series = hv_table["datetime"].astype(str) + " • " + hv_table["event_type"].astype(str) + " • " + hv_table["filename"].astype(str)
-            idx = st.selectbox("Select an event", options=list(range(len(hv_table))), format_func=lambda i: label_series.iloc[i] if i < len(label_series) else str(i))
-            selection = {"selection": {"rows": [idx]}}
-
-        sel_rows = (selection or {}).get("selection", {}).get("rows", [])
-        if sel_rows:
-            idx = sel_rows[0]
-            row = hv_table.iloc[idx]
-            url, fid = resolve_image_link(row)
-
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(f"**Selected:** `{row.get('filename','')}`")
-            st.markdown(f"- **Time:** {row.get('datetime','')}")
-            st.markdown(f"- **Temp (°F):** {row.get('temp_f','')}")
-            st.markdown(f"- **Type:** {row.get('event_type','')}")
-
-            if url:
-                st.markdown(f"🔗 **Open image in Drive:** {url}")
-            else:
-                st.warning(
-                    "No Drive link available for this image.\n\n"
-                    "Best fix: add `image_drive_id` (or `image_url`) to events.csv, "
-                    "or set `gdrive.images_folder_id` in Streamlit secrets so the app can map filenames."
-                )
-
-            if fid:
-                if st.checkbox("Show image preview (downloads image from Drive)", key="hv_preview"):
-                    try:
-                        service = _drive_client()
-                        img_bytes = _download_drive_file_bytes(service, fid)
-                        st.image(img_bytes, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Could not preview image: {e}")
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-with tab_table:
-    st.subheader("All Events (for searching / auditing)")
-
-    show_cols = [c for c in [
-        "datetime", "temp_f", "event_type", "species", "species_conf",
-        "top1_species", "top1_conf", "top2_species", "top2_conf", "top3_species", "top3_conf",
-        "filename"
-    ] if c in base.columns]
-
-    st.dataframe(
-        base.sort_values(by="datetime", ascending=False) if "datetime" in base.columns else base,
-        use_container_width=True,
-        hide_index=True,
+    scatter = (
+        alt.Chart(data)
+        .mark_circle(size=220, opacity=0.85)
+        .encode(
+            x=alt.X("datetime:T", title="Time"),
+            y=alt.Y("temp_f:Q", title="Temp (°F)", scale=alt.Scale(domain=y_domain)),
+            color=alt.Color(color_field, title=color_title),
+            tooltip=tooltip,
+        )
+        .interactive()
     )
+
+    st.altair_chart(scatter, use_container_width=True)
+
+    # ---- Chart 2: heatmap (super obvious pattern finder)
+    st.markdown("**2) Most common hours (pattern heatmap)**")
+    heat = data.dropna(subset=["hour", "temp_f"]).copy()
+    heat["temp_bin"] = pd.cut(heat["temp_f"], bins=10)
+
+    heat_agg = (
+        heat.groupby(["hour", "temp_bin"])
+        .size()
+        .reset_index(name="count")
+    )
+
+    heatmap = (
+        alt.Chart(heat_agg)
+        .mark_rect()
+        .encode(
+            x=alt.X("hour:O", title="Hour of day (0–23)"),
+            y=alt.Y("temp_bin:N", title="Temp range (°F)"),
+            tooltip=[
+                alt.Tooltip("hour:O", title="Hour"),
+                alt.Tooltip("temp_bin:N", title="Temp range"),
+                alt.Tooltip("count:Q", title="Events"),
+            ],
+            color=alt.Color("count:Q", title="Events"),
+        )
+    )
+
+    st.altair_chart(heatmap, use_container_width=True)
+
+    st.caption("Hover a chart point to see details. Use the picker on the right to open the photo.")
+
+with right:
+    st.subheader("Photo Viewer")
+
+    # A big, friendly event picker
+    view = data.sort_values("datetime", ascending=False).copy()
+    view["label"] = (
+        view["datetime"].dt.strftime("%b %d %I:%M %p")
+        + " • "
+        + (view["species"].where(view["species"] != "", other=view["event_type"])).fillna("")
+        + " • "
+        + view["temp_f"].round(0).astype("Int64").astype(str)
+        + "°F"
+    )
+
+    chosen = st.selectbox("Pick an event", options=view.index.tolist(), format_func=lambda i: view.loc[i, "label"])
+
+    row = view.loc[chosen]
+    url, fid = resolve_image_link(row, image_map)
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown(f"**When:** {row.get('datetime')}")
+    st.markdown(f"**Temp:** {row.get('temp_f')} °F")
+    if mode == "Animals":
+        st.markdown(f"**Species:** {row.get('species') or 'Unknown'}")
+    else:
+        st.markdown(f"**Type:** {row.get('event_type')}")
+    st.markdown(f"**File:** `{row.get('filename','')}`")
+
+    if url:
+        st.link_button("Open photo in Google Drive", url)
+    else:
+        st.warning(
+            "I can’t link this photo yet.\n\n"
+            "Fix: make sure your images folder is shared with the service account "
+            "and `gdrive.images_folder_id` is set in secrets."
+        )
+
+    # Simple preview toggle (no tech words)
+    if fid and st.toggle("Show photo preview here", value=True):
+        try:
+            service = _drive_client()
+            img_bytes = _download_drive_file_bytes(service, fid)
+            st.image(img_bytes, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not load preview: {e}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.caption("This view shows only the important details + the photo.")
+
 
 st.divider()
 st.caption(
-    f"✅ Google Drive source: {df.attrs.get('drive_name','events.csv')} • "
-    f"cached {CACHE_TTL_SECONDS//3600}h • "
-    f"last modified {last_mod_pretty}"
+    f"Source: {df.attrs.get('drive_name','events.csv')} • "
+    f"Updated {last_mod_pretty} • "
+    f"Cache {CACHE_TTL_SECONDS//3600}h"
 )
