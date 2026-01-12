@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import altair as alt
 import pandas as pd
@@ -159,11 +159,10 @@ def _after_last_semicolon(s: str) -> str:
 
 def normalize_species(raw: str) -> str:
     """
-    Your labels sometimes come like: "a;b;c;vehicle" etc.
     Rules:
-      - if it contains vehicle => "vehicle"
-      - if it contains human/person => "human"
-      - else keep the last segment after semicolons
+      - contains vehicle => "vehicle"
+      - contains human/person => "human"
+      - else keep last segment after semicolons
     """
     if raw is None:
         return ""
@@ -205,6 +204,11 @@ def pretty_last_modified(iso_str: str) -> str:
         return iso_str
 
 
+def week_start(d: date) -> date:
+    # Monday as start of week
+    return d - timedelta(days=d.weekday())
+
+
 # =========================
 # Load + prep (with friendly errors)
 # =========================
@@ -222,7 +226,7 @@ except Exception as e:
 
 last_mod_pretty = pretty_last_modified(df.attrs.get("drive_modified", ""))
 
-# Ensure required-ish columns exist. If not, create safe blanks so the app won't crash.
+# Ensure columns exist
 for col in ["date", "time", "event_type", "species", "filename"]:
     if col not in df.columns:
         df[col] = ""
@@ -233,21 +237,20 @@ if "temp_f" not in df.columns:
     df["temp_f"] = pd.NA
 df["temp_f"] = pd.to_numeric(df["temp_f"], errors="coerce")
 
-# Normalize types/species
+# Normalize
 df["event_type"] = df["event_type"].map(normalize_event_type)
 df["species"] = df["species"].map(normalize_species)
 
 # Datetime
 df["datetime"] = pd.to_datetime(df["date"] + " " + df["time"], errors="coerce")
 
-# Drop rows with no datetime (cannot graph them)
+# Only keep graphable rows
 df_valid = df.dropna(subset=["datetime"]).copy()
-
 if df_valid.empty:
     st.error("No valid date/time values were found in events.csv. (The dashboard needs date + time.)")
     st.stop()
 
-# extra pattern fields
+# pattern fields
 df_valid["hour"] = df_valid["datetime"].dt.hour
 df_valid["weekday"] = df_valid["datetime"].dt.day_name()
 
@@ -258,10 +261,8 @@ if IMAGES_FOLDER_ID:
     try:
         with st.spinner("Indexing photos folder… (cached)"):
             image_map = list_images_in_folder(IMAGES_FOLDER_ID)
-    except HttpError as e:
-        images_index_error = "Could not index your photos folder on Drive (permissions or API issue)."
     except Exception:
-        images_index_error = "Could not index your photos folder on Drive."
+        images_index_error = "Could not index your photos folder on Drive (permissions or API issue)."
 
 st.success(f"Loaded **{len(df_valid):,}** events • Updated: **{last_mod_pretty}**")
 
@@ -277,31 +278,65 @@ mode = st.sidebar.radio(
     index=0,
 )
 
-# Date range
+# Date defaults
 min_dt = df_valid["datetime"].min()
 max_dt = df_valid["datetime"].max()
-
 default_start = min_dt.date()
 default_end = max_dt.date()
 
+# --- Quick buttons (non-tech friendly)
+st.sidebar.subheader("Quick range")
+colA, colB = st.sidebar.columns(2)
+colC, colD = st.sidebar.columns(2)
+
+# Store chosen quick-range in session_state
+if "quick_range" not in st.session_state:
+    st.session_state.quick_range = "All time"
+
+if colA.button("Last 7 days", use_container_width=True):
+    st.session_state.quick_range = "Last 7 days"
+if colB.button("Last 30 days", use_container_width=True):
+    st.session_state.quick_range = "Last 30 days"
+if colC.button("This week", use_container_width=True):
+    st.session_state.quick_range = "This week"
+if colD.button("All time", use_container_width=True):
+    st.session_state.quick_range = "All time"
+
+qr = st.session_state.quick_range
+today = default_end
+
+if qr == "Last 7 days":
+    quick_start = max(default_start, today - timedelta(days=6))
+    quick_end = today
+elif qr == "Last 30 days":
+    quick_start = max(default_start, today - timedelta(days=29))
+    quick_end = today
+elif qr == "This week":
+    quick_start = max(default_start, week_start(today))
+    quick_end = today
+else:
+    quick_start = default_start
+    quick_end = default_end
+
+st.sidebar.caption(f"Selected: **{qr}**")
+
+# Date range picker (still available, but quick buttons handle most use)
 date_range = st.sidebar.date_input(
     "Date range",
-    value=(default_start, default_end),
+    value=(quick_start, quick_end),
 )
 
-# Normalize date_range into (start, end)
+# Normalize date_range
 if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
     start_date, end_date = date_range
 else:
-    # If user picks a single date, treat it as that one day
-    start_date = date_range if isinstance(date_range, date) else default_start
+    start_date = date_range if isinstance(date_range, date) else quick_start
     end_date = start_date
 
-# Protect against reversed dates
 if start_date > end_date:
     start_date, end_date = end_date, start_date
 
-# Temperature range slider (safe)
+# Temperature slider
 t_series = df_valid["temp_f"].dropna()
 if t_series.empty:
     st.sidebar.warning("No temperature values found. Charts will show without temp filtering.")
@@ -375,7 +410,14 @@ with left:
     if chart_source.empty:
         st.info("No valid temperature values in this filter window. (Can’t plot temp chart.)")
     else:
-        # simple color grouping
+        # Force readable y-axis scale: at least 10°F to 90°F
+        # Expand beyond those if your data is outside that range.
+        filtered_temps = chart_source["temp_f"].dropna()
+        min_temp = float(filtered_temps.min()) if not filtered_temps.empty else 10.0
+        max_temp = float(filtered_temps.max()) if not filtered_temps.empty else 90.0
+        y_min = min(10.0, min_temp)
+        y_max = max(90.0, max_temp)
+
         if mode == "Animals":
             top_species = (
                 chart_source[chart_source["species"].notna() & (chart_source["species"] != "")]
@@ -410,13 +452,15 @@ with left:
             .mark_circle(size=220, opacity=0.85)
             .encode(
                 x=alt.X("datetime:T", title="Time"),
-                y=alt.Y("temp_f:Q", title="Temp (°F)"),
+                y=alt.Y("temp_f:Q", title="Temp (°F)", scale=alt.Scale(domain=[y_min, y_max])),
                 color=alt.Color(color_field, title=color_title),
                 tooltip=tooltip,
             )
             .interactive()
         )
         st.altair_chart(scatter, use_container_width=True)
+
+        st.caption(f"Temperature scale is always shown from at least **10°F to 90°F** (and expands if needed).")
 
     # ---- Chart 2: time patterns (hour + weekday)
     st.markdown("**2) Time patterns (when most activity happens)**")
@@ -478,7 +522,6 @@ with right:
 
     view = data.sort_values("datetime", ascending=False).copy()
 
-    # label (safe)
     def _label_for_row(r):
         when = r["datetime"].strftime("%b %d %I:%M %p") if pd.notna(r["datetime"]) else "Unknown time"
         temp = ""
@@ -487,11 +530,7 @@ with right:
                 temp = f"{int(round(float(r['temp_f'])))}°F"
             except Exception:
                 temp = ""
-        what = ""
-        if mode == "Animals":
-            what = r.get("species", "") or "Unknown animal"
-        else:
-            what = r.get("event_type", "") or "Unknown"
+        what = (r.get("species", "") or "Unknown animal") if mode == "Animals" else (r.get("event_type", "") or "Unknown")
         return f"{when} • {what} • {temp}".strip(" •")
 
     view["label"] = view.apply(_label_for_row, axis=1)
