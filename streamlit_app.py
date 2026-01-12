@@ -399,99 +399,163 @@ with left:
         st.altair_chart(scatter, use_container_width=True)
 
     st.markdown("---")
+        st.markdown("---")
     st.subheader("Patterns")
 
     patt = base.dropna(subset=["datetime"]).copy()
-    patt["hour"] = patt["datetime"].dt.hour
-    patt["weekday"] = patt["datetime"].dt.day_name()
 
+    # Always show full week
     weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    patt["weekday"] = patt["datetime"].dt.day_name()
+    patt["weekday"] = pd.Categorical(patt["weekday"], categories=weekday_order, ordered=True)
 
+    # More detailed time-of-day bins (30 minutes)
+    # If you want 15-min bins, set BIN_MINUTES = 15
+    BIN_MINUTES = 30
+    minutes_since_midnight = patt["datetime"].dt.hour * 60 + patt["datetime"].dt.minute
+    patt["time_bin"] = (minutes_since_midnight // BIN_MINUTES) * BIN_MINUTES
+
+    # Label like "06:00", "06:30", ...
+    patt["time_label"] = patt["time_bin"].apply(lambda m: f"{int(m//60):02d}:{int(m%60):02d}")
+
+    # Ensure we show ALL time bins even if empty, for consistent comparisons
+    full_bins = list(range(0, 24 * 60, BIN_MINUTES))
+    full_time_labels = [f"{b//60:02d}:{b%60:02d}" for b in full_bins]
+
+    # Toggle for Wildlife charts: stacked vs clustered
     if section == "Wildlife":
-        st.caption("Bars are split by species (stacked) so you can see what makes up each hour/day.")
+        chart_style = st.radio(
+            "Bar style",
+            options=["Stacked", "Clustered"],
+            horizontal=True,
+            index=0,
+        )
 
-        # Group species so the legend stays readable
+        # Limit legend noise: top species + Other (still allows filtering in sidebar)
         sp_counts = (
             patt[patt["species"] != ""]
             .groupby("species")
             .size()
             .sort_values(ascending=False)
         )
-        top_species = sp_counts.head(8).index.tolist()
+        top_species = sp_counts.head(10).index.tolist()
         patt["species_group"] = patt["species"].where(patt["species"].isin(top_species), other="Other")
 
-        # A) Stacked by species: hour
-        by_hour = (
-            patt.groupby(["hour", "species_group"])
+        # --- Time of day (species split)
+        by_time = (
+            patt.groupby(["time_label", "species_group"])
             .size()
             .reset_index(name="Sightings")
-            .sort_values(["hour", "species_group"])
         )
 
-        hour_chart = (
-            alt.Chart(by_hour)
-            .mark_bar()
-            .encode(
-                x=alt.X("hour:O", title="Hour of Day", axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Sightings"),
-                color=alt.Color("species_group:N", title="Species"),
-                tooltip=[
-                    alt.Tooltip("hour:O", title="Hour"),
-                    alt.Tooltip("species_group:N", title="Species"),
-                    alt.Tooltip("Sightings:Q", title="Sightings"),
-                ],
-            )
-        )
+        # Add missing time bins for each species_group (so the x-axis always fully shows)
+        # Build a complete grid then left-join counts
+        all_species_groups = sorted(by_time["species_group"].unique().tolist())
+        grid = pd.MultiIndex.from_product(
+            [full_time_labels, all_species_groups],
+            names=["time_label", "species_group"]
+        ).to_frame(index=False)
 
-        # B) Stacked by species: weekday
+        by_time = grid.merge(by_time, on=["time_label", "species_group"], how="left").fillna({"Sightings": 0})
+
+        # For consistent order on x-axis
+        by_time["time_label"] = pd.Categorical(by_time["time_label"], categories=full_time_labels, ordered=True)
+
+        # --- Day of week (species split)
         by_day = (
             patt.groupby(["weekday", "species_group"])
             .size()
             .reset_index(name="Sightings")
         )
+
+        # Add missing weekdays for each species_group (so Mon–Sun always shows)
+        grid2 = pd.MultiIndex.from_product(
+            [weekday_order, all_species_groups],
+            names=["weekday", "species_group"]
+        ).to_frame(index=False)
+
+        by_day = grid2.merge(by_day, on=["weekday", "species_group"], how="left").fillna({"Sightings": 0})
         by_day["weekday"] = pd.Categorical(by_day["weekday"], categories=weekday_order, ordered=True)
-        by_day = by_day.sort_values(["weekday", "species_group"])
+
+        # Encoding for stacked vs clustered
+        stack_param = alt.Stack("zero") if chart_style == "Stacked" else None
+        xoffset_param = "species_group:N" if chart_style == "Clustered" else None
+
+        st.caption("Counts are split by species (top 10 + Other). Use the Species filter to focus.")
+
+        time_chart = (
+            alt.Chart(by_time)
+            .mark_bar()
+            .encode(
+                x=alt.X("time_label:N", title=f"Time of Day (every {BIN_MINUTES} minutes)", sort=full_time_labels),
+                y=alt.Y("Sightings:Q", title="Sightings", stack=stack_param),
+                color=alt.Color("species_group:N", title="Species"),
+                xOffset=xoffset_param,
+                tooltip=[
+                    alt.Tooltip("time_label:N", title="Time"),
+                    alt.Tooltip("species_group:N", title="Species"),
+                    alt.Tooltip("Sightings:Q", title="Sightings"),
+                ],
+            )
+            .properties(height=320)
+        )
 
         day_chart = (
             alt.Chart(by_day)
             .mark_bar()
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-                x=alt.X("Sightings:Q", title="Sightings"),
+                x=alt.X("Sightings:Q", title="Sightings", stack=stack_param),
                 color=alt.Color("species_group:N", title="Species"),
+                xOffset=xoffset_param,
                 tooltip=[
                     alt.Tooltip("weekday:N", title="Day"),
                     alt.Tooltip("species_group:N", title="Species"),
                     alt.Tooltip("Sightings:Q", title="Sightings"),
                 ],
             )
+            .properties(height=260)
         )
 
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**Time of Day**")
-            st.altair_chart(hour_chart, use_container_width=True)
-        with cB:
-            st.markdown("**Day of Week**")
-            st.altair_chart(day_chart, use_container_width=True)
+        st.markdown("**Time of day**")
+        st.altair_chart(time_chart, use_container_width=True)
+
+        st.markdown("**Day of week**")
+        st.altair_chart(day_chart, use_container_width=True)
 
     else:
-        # People / Vehicles: simple bars (no stacking)
-        st.caption("Counts by hour and day of week.")
-
-        by_hour = patt.groupby("hour").size().reset_index(name="Sightings").sort_values("hour")
-        hour_chart = (
-            alt.Chart(by_hour)
-            .mark_bar()
-            .encode(
-                x=alt.X("hour:O", title="Hour of Day", axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Sightings"),
-                tooltip=[alt.Tooltip("hour:O", title="Hour"), alt.Tooltip("Sightings:Q", title="Sightings")],
-            )
+        # People / Vehicles: simple, consistent bins + full week
+        by_time = (
+            patt.groupby("time_label")
+            .size()
+            .reset_index(name="Sightings")
         )
 
-        by_day = patt.groupby("weekday").size().reindex(weekday_order, fill_value=0).reset_index(name="Sightings")
-        by_day.columns = ["weekday", "Sightings"]
+        grid = pd.DataFrame({"time_label": full_time_labels})
+        by_time = grid.merge(by_time, on="time_label", how="left").fillna({"Sightings": 0})
+        by_time["time_label"] = pd.Categorical(by_time["time_label"], categories=full_time_labels, ordered=True)
+
+        by_day = (
+            patt.groupby("weekday")
+            .size()
+            .reset_index(name="Sightings")
+        )
+
+        grid2 = pd.DataFrame({"weekday": weekday_order})
+        by_day = grid2.merge(by_day, on="weekday", how="left").fillna({"Sightings": 0})
+        by_day["weekday"] = pd.Categorical(by_day["weekday"], categories=weekday_order, ordered=True)
+
+        time_chart = (
+            alt.Chart(by_time)
+            .mark_bar()
+            .encode(
+                x=alt.X("time_label:N", title=f"Time of Day (every {BIN_MINUTES} minutes)", sort=full_time_labels),
+                y=alt.Y("Sightings:Q", title="Sightings"),
+                tooltip=[alt.Tooltip("time_label:N", title="Time"), alt.Tooltip("Sightings:Q", title="Sightings")],
+            )
+            .properties(height=320)
+        )
+
         day_chart = (
             alt.Chart(by_day)
             .mark_bar()
@@ -500,84 +564,11 @@ with left:
                 x=alt.X("Sightings:Q", title="Sightings"),
                 tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("Sightings:Q", title="Sightings")],
             )
+            .properties(height=260)
         )
 
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**Time of Day**")
-            st.altair_chart(hour_chart, use_container_width=True)
-        with cB:
-            st.markdown("**Day of Week**")
-            st.altair_chart(day_chart, use_container_width=True)
+        st.markdown("**Time of day**")
+        st.altair_chart(time_chart, use_container_width=True)
 
-
-with right:
-    st.subheader("Photo Viewer")
-
-    view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
-
-    def _row_label(r):
-        when = r["datetime"].strftime("%b %d • %I:%M %p")
-        t = f"{int(round(r['temp_f']))}°F" if pd.notna(r.get("temp_f")) else "—"
-        if section == "Wildlife":
-            spec = r.get("species", "") or "Unknown"
-            return f"{when} • {spec} • {t}"
-        return f"{when} • {section} • {t}"
-
-    view["label"] = view.apply(_row_label, axis=1)
-
-    chosen_idx = st.selectbox(
-        "Select a sighting",
-        options=view.index.tolist(),
-        format_func=lambda i: view.loc[i, "label"],
-    )
-
-    row = view.loc[chosen_idx]
-    url, fid = resolve_image_link(row, image_map)
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f"**When:** {row.get('datetime')}")
-    if pd.notna(row.get("temp_f")):
-        st.markdown(f"**Temperature:** {int(round(float(row.get('temp_f'))))} °F")
-    else:
-        st.markdown("**Temperature:** —")
-
-    if section == "Wildlife":
-        st.markdown(f"**Species:** {row.get('species') or 'Unknown'}")
-
-    st.markdown(f"**File:** `{row.get('filename','')}`")
-
-    if url:
-        st.link_button("Open photo in Google Drive", url)
-    else:
-        st.warning(
-            "Photo link not available.\n\n"
-            "Fix options:\n"
-            "• Add `image_drive_id` or `image_url` columns to events.csv\n"
-            "• Or set `gdrive.images_folder_id` in secrets and share that folder with the service account"
-        )
-
-    if fid and st.toggle("Show photo preview", value=True):
-        try:
-            service = _drive_client()
-            img_bytes = _download_drive_file_bytes(service, fid)
-            st.image(img_bytes, use_container_width=True)
-        except Exception as e:
-            st.error(f"Could not load preview: {e}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.subheader("Section Table")
-
-    # Section-pure table
-    show_cols = [c for c in ["datetime", "temp_f", "species", "filename"] if c in view.columns]
-    if section != "Wildlife":
-        show_cols = [c for c in ["datetime", "temp_f", "filename"] if c in view.columns]
-
-    st.dataframe(view.sort_values("datetime", ascending=False)[show_cols], use_container_width=True, hide_index=True)
-
-st.divider()
-st.caption(
-    f"Source: {df.attrs.get('drive_name','events.csv')} • Updated {last_mod_pretty} • Cache {CACHE_TTL_SECONDS//3600}h"
-)
+        st.markdown("**Day of week**")
+        st.altair_chart(day_chart, use_container_width=True)
