@@ -354,33 +354,113 @@ with left:
 
     st.altair_chart(scatter, use_container_width=True)
 
-    # ---- Chart 2: heatmap (super obvious pattern finder)
-    st.markdown("**2) Most common hours (pattern heatmap)**")
-    heat = data.dropna(subset=["hour", "temp_f"]).copy()
-    heat["temp_bin"] = pd.cut(heat["temp_f"], bins=10)
+      # ---- Chart 2: Simple pattern charts (much more readable than a heatmap)
+    st.markdown("**2) Simple patterns (easy to read)**")
 
-    heat_agg = (
-        heat.groupby(["hour", "temp_bin"])
+    patt = data.dropna(subset=["datetime", "temp_f"]).copy()
+    patt["hour"] = patt["datetime"].dt.hour
+    patt["weekday"] = patt["datetime"].dt.day_name()
+
+    # Order weekdays in a normal, human order
+    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    # --- A) Events by hour (bar)
+    by_hour = (
+        patt.groupby("hour")
         .size()
-        .reset_index(name="count")
+        .reset_index(name="events")
+        .sort_values("hour")
     )
 
-    heatmap = (
-        alt.Chart(heat_agg)
-        .mark_rect()
+    hour_chart = (
+        alt.Chart(by_hour)
+        .mark_bar()
         .encode(
-            x=alt.X("hour:O", title="Hour of day (0–23)"),
-            y=alt.Y("temp_bin:N", title="Temp range (°F)"),
+            x=alt.X(
+                "hour:O",
+                title="Hour of Day (0 = midnight, 12 = noon, 23 = 11pm)",
+                axis=alt.Axis(labelAngle=0),
+            ),
+            y=alt.Y("events:Q", title="Number of Events"),
             tooltip=[
                 alt.Tooltip("hour:O", title="Hour"),
-                alt.Tooltip("temp_bin:N", title="Temp range"),
-                alt.Tooltip("count:Q", title="Events"),
+                alt.Tooltip("events:Q", title="Events"),
             ],
-            color=alt.Color("count:Q", title="Events"),
         )
     )
 
-    st.altair_chart(heatmap, use_container_width=True)
+    # --- B) Events by weekday (bar)
+    by_day = (
+        patt.groupby("weekday")
+        .size()
+        .reindex(weekday_order, fill_value=0)
+        .reset_index(name="events")
+    )
+    by_day.columns = ["weekday", "events"]
+
+    day_chart = (
+        alt.Chart(by_day)
+        .mark_bar()
+        .encode(
+            y=alt.Y(
+                "weekday:N",
+                title="Day of Week",
+                sort=weekday_order,
+            ),
+            x=alt.X("events:Q", title="Number of Events"),
+            tooltip=[
+                alt.Tooltip("weekday:N", title="Day"),
+                alt.Tooltip("events:Q", title="Events"),
+            ],
+        )
+    )
+
+    # --- C) Typical temperature by hour (line)
+    # Uses median temperature (more stable than mean)
+    by_hour_temp = (
+        patt.groupby("hour")["temp_f"]
+        .median()
+        .reset_index(name="median_temp_f")
+        .sort_values("hour")
+    )
+
+    # Keep y-axis stable if user has "fixed_scale" checked
+    temp_domain = [lo, hi] if fixed_scale else None
+
+    temp_chart = (
+        alt.Chart(by_hour_temp)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "hour:O",
+                title="Hour of Day",
+                axis=alt.Axis(labelAngle=0),
+            ),
+            y=alt.Y(
+                "median_temp_f:Q",
+                title="Typical Temperature (°F) at that Hour (median)",
+                scale=alt.Scale(domain=temp_domain),
+            ),
+            tooltip=[
+                alt.Tooltip("hour:O", title="Hour"),
+                alt.Tooltip("median_temp_f:Q", title="Median Temp (°F)", format=".1f"),
+            ],
+        )
+    )
+
+    cA, cB = st.columns(2)
+    with cA:
+        st.markdown("**Events by hour**")
+        st.altair_chart(hour_chart, use_container_width=True)
+
+    with cB:
+        st.markdown("**Events by day of week**")
+        st.altair_chart(day_chart, use_container_width=True)
+
+    st.markdown("**Typical temperature by hour**")
+    st.altair_chart(temp_chart, use_container_width=True)
+
+    st.caption("These charts answer: *When does it happen? Which days? What temps?* (without the clutter).")
 
     st.caption("Hover a chart point to see details. Use the picker on the right to open the photo.")
 
