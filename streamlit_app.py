@@ -285,40 +285,7 @@ default_start = min_dt.date()
 default_end = max_dt.date()
 
 # --- Quick buttons (non-tech friendly)
-st.sidebar.subheader("Quick range")
-colA, colB = st.sidebar.columns(2)
-colC, colD = st.sidebar.columns(2)
 
-# Store chosen quick-range in session_state
-if "quick_range" not in st.session_state:
-    st.session_state.quick_range = "All time"
-
-if colA.button("Last 7 days", use_container_width=True):
-    st.session_state.quick_range = "Last 7 days"
-if colB.button("Last 30 days", use_container_width=True):
-    st.session_state.quick_range = "Last 30 days"
-if colC.button("This week", use_container_width=True):
-    st.session_state.quick_range = "This week"
-if colD.button("All time", use_container_width=True):
-    st.session_state.quick_range = "All time"
-
-qr = st.session_state.quick_range
-today = default_end
-
-if qr == "Last 7 days":
-    quick_start = max(default_start, today - timedelta(days=6))
-    quick_end = today
-elif qr == "Last 30 days":
-    quick_start = max(default_start, today - timedelta(days=29))
-    quick_end = today
-elif qr == "This week":
-    quick_start = max(default_start, week_start(today))
-    quick_end = today
-else:
-    quick_start = default_start
-    quick_end = default_end
-
-st.sidebar.caption(f"Selected: **{qr}**")
 
 # Date range picker (still available, but quick buttons handle most use)
 date_range = st.sidebar.date_input(
