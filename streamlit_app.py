@@ -355,7 +355,7 @@ with left:
     st.altair_chart(scatter, use_container_width=True)
 
       # ---- Chart 2: Simple pattern charts (much more readable than a heatmap)
-    st.markdown("**2) Simple patterns (easy to read)**")
+    st.markdown("**2) Time Data On Sightings")
 
     patt = data.dropna(subset=["datetime", "temp_f"]).copy()
     patt["hour"] = patt["datetime"].dt.hour
