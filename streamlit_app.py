@@ -399,7 +399,6 @@ with left:
         st.altair_chart(scatter, use_container_width=True)
 
     st.markdown("---")
-        st.markdown("---")
     st.subheader("Patterns")
 
     patt = base.dropna(subset=["datetime"]).copy()
