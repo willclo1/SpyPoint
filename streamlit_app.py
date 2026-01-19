@@ -1,8 +1,13 @@
 # streamlit_app.py
-# Ranch Activity Dashboard — clean sections:
+# Ranch Activity Dashboard — camera-aware + robust image linking
 #   Wildlife shows ONLY wildlife (with species filter + species-stacked bars)
 #   People shows ONLY people
 #   Vehicles shows ONLY vehicles
+#
+# New structure support:
+#   - events.csv includes a "camera" column
+#   - images are stored in Drive as: images/<camera>/<filename>.jpg
+#   - Streamlit can open + preview the exact file (camera + filename) reliably
 
 import io
 from datetime import datetime
@@ -39,13 +44,16 @@ st.markdown(
       .stAlert { border-radius: 14px; }
       section[data-testid="stSidebar"] { padding-top: 1rem; }
       button[kind="secondary"], button[kind="primary"] { border-radius: 10px; }
+      .tight { margin-top: 0.25rem; }
+      .muted { opacity: 0.8; }
+      .hr { border-top: 1px solid rgba(255,255,255,0.10); margin: 1rem 0; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.title("Ranch Activity")
-st.caption("Wildlife, people, and vehicles — separated. Select a sighting to view the photo.")
+st.caption("Wildlife, people, and vehicles — separated. Filter by camera. Select a sighting to view the photo.")
 
 
 # ---------------------------
@@ -62,7 +70,14 @@ def _require_secret(path: str):
 
 
 DRIVE_FILE_ID = _require_secret("gdrive.file_id")
+# Root folder that contains:
+#   events.csv
+#   images/<camera>/<filename>.jpg
+GDRIVE_ROOT_FOLDER_ID = (st.secrets.get("gdrive", {}).get("root_folder_id") or "").strip()
+
+# Back-compat (older approach): a single folder containing ALL images flat.
 IMAGES_FOLDER_ID = (st.secrets.get("gdrive", {}).get("images_folder_id") or "").strip()
+
 CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
 
 
@@ -101,8 +116,102 @@ def load_events_from_drive(file_id: str) -> pd.DataFrame:
     return df
 
 
+def drive_view_url(file_id: str) -> str:
+    return f"https://drive.google.com/file/d/{file_id}/view"
+
+
+def _safe_str(x) -> str:
+    if x is None:
+        return ""
+    if isinstance(x, float) and pd.isna(x):
+        return ""
+    return str(x).strip()
+
+
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
+def _list_drive_files_recursive(root_folder_id: str) -> dict:
+    """
+    Recursively list files under root_folder_id and build a map:
+      relpath (e.g. "images/gate/PICT123.jpg") -> {id, name, webViewLink}
+
+    This is the most reliable way to support camera subfolders on Drive.
+    If root_folder_id is not set, returns {}.
+    """
+    if not root_folder_id:
+        return {}
+
+    service = _drive_client()
+
+    # 1) Collect all folders under root
+    folders = {}  # folder_id -> relpath
+    folders[root_folder_id] = ""  # root path
+
+    # BFS across folders
+    queue = [root_folder_id]
+    while queue:
+        parent_id = queue.pop(0)
+        parent_rel = folders.get(parent_id, "")
+
+        page_token = None
+        while True:
+            resp = (
+                service.files()
+                .list(
+                    q=f"'{parent_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'",
+                    fields="nextPageToken, files(id,name)",
+                    pageSize=1000,
+                    pageToken=page_token,
+                )
+                .execute()
+            )
+            for f in resp.get("files", []):
+                fid = f.get("id")
+                name = f.get("name", "")
+                if not fid or not name:
+                    continue
+                rel = f"{parent_rel}/{name}".strip("/")
+                if fid not in folders:
+                    folders[fid] = rel
+                    queue.append(fid)
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+
+    # 2) List files in each folder, build relpath map
+    out = {}
+    for folder_id, folder_rel in folders.items():
+        page_token = None
+        while True:
+            resp = (
+                service.files()
+                .list(
+                    q=f"'{folder_id}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'",
+                    fields="nextPageToken, files(id,name,webViewLink,mimeType)",
+                    pageSize=1000,
+                    pageToken=page_token,
+                )
+                .execute()
+            )
+            for f in resp.get("files", []):
+                fid = f.get("id", "")
+                name = f.get("name", "")
+                if not fid or not name:
+                    continue
+                relpath = f"{folder_rel}/{name}".strip("/")
+                out[relpath] = {"id": fid, "name": name, "webViewLink": f.get("webViewLink", "")}
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+
+    return out
+
+
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
 def list_images_in_folder(folder_id: str) -> dict:
+    """
+    Back-compat: list images in a single flat folder.
+    Returns { filename: {id, webViewLink} }.
+    """
     if not folder_id:
         return {}
     service = _drive_client()
@@ -122,21 +231,41 @@ def list_images_in_folder(folder_id: str) -> dict:
     return out
 
 
-def drive_view_url(file_id: str) -> str:
-    return f"https://drive.google.com/file/d/{file_id}/view"
+def resolve_image_link(row: pd.Series, drive_index: dict, flat_image_map: dict) -> tuple[str, str]:
+    """
+    Returns (url, file_id)
 
+    Priority:
+      1) image_url column
+      2) image_drive_id column
+      3) NEW structure lookup: "images/<camera>/<filename>" under root folder index
+      4) OLD structure lookup: filename in flat images folder map
+    """
+    # 1) Explicit URL
+    if "image_url" in row.index and _safe_str(row.get("image_url", "")):
+        return _safe_str(row.get("image_url", "")), ""
 
-def resolve_image_link(row: pd.Series, image_map: dict) -> tuple[str, str]:
-    if "image_url" in row.index and str(row.get("image_url", "")).strip():
-        return str(row["image_url"]).strip(), ""
-    if "image_drive_id" in row.index and str(row.get("image_drive_id", "")).strip():
-        fid = str(row["image_drive_id"]).strip()
+    # 2) Explicit Drive file id
+    if "image_drive_id" in row.index and _safe_str(row.get("image_drive_id", "")):
+        fid = _safe_str(row.get("image_drive_id", ""))
         return drive_view_url(fid), fid
-    fn = str(row.get("filename", "")).strip()
-    if fn and fn in image_map:
-        fid = image_map[fn].get("id", "")
-        url = image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
+
+    # 3) New structure: images/<camera>/<filename>
+    cam = _safe_str(row.get("camera", ""))
+    fn = _safe_str(row.get("filename", ""))
+    if cam and fn and drive_index:
+        key = f"images/{cam}/{fn}"
+        if key in drive_index:
+            fid = drive_index[key].get("id", "")
+            url = drive_index[key].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
+            return url, fid
+
+    # 4) Old structure: filename in flat folder
+    if fn and fn in flat_image_map:
+        fid = flat_image_map[fn].get("id", "")
+        url = flat_image_map[fn].get("webViewLink", "") or (drive_view_url(fid) if fid else "")
         return url, fid
+
     return "", ""
 
 
@@ -181,11 +310,11 @@ def normalize_event_type(raw: str) -> str:
 def build_datetime(df: pd.DataFrame) -> pd.Series:
     date_s = df.get("date", pd.Series([""] * len(df))).astype(str).fillna("")
     time_s = df.get("time", pd.Series([""] * len(df))).astype(str).fillna("")
+    # your OCR can produce inconsistent formats; errors='coerce' keeps app alive
     return pd.to_datetime((date_s + " " + time_s).str.strip(), errors="coerce")
 
 
 def clamp_temp_domain(min_v: float, max_v: float) -> tuple[float, float]:
-    # Always show at least 10–90 for clear scaling
     lo = min(10.0, float(min_v)) if pd.notna(min_v) else 10.0
     hi = max(90.0, float(max_v)) if pd.notna(max_v) else 90.0
     if hi - lo < 20:
@@ -212,21 +341,37 @@ with st.spinner("Loading events…"):
 
 last_mod_pretty = nice_last_modified(df.attrs.get("drive_modified", ""))
 
-for col in ["date", "time", "event_type", "species", "filename"]:
+# normalize columns safely
+for col in ["camera", "date", "time", "event_type", "species", "filename"]:
     if col in df.columns:
         df[col] = df[col].fillna("").astype(str)
+    else:
+        # Ensure missing columns don't crash filters later
+        if col == "camera":
+            df["camera"] = ""
+        if col == "filename":
+            df["filename"] = ""
+        if col == "event_type":
+            df["event_type"] = ""
+        if col == "species":
+            df["species"] = ""
 
+# temp_f
 df["temp_f"] = pd.to_numeric(df.get("temp_f", pd.Series([pd.NA] * len(df))), errors="coerce")
-df["event_type"] = df.get("event_type", "").map(normalize_event_type) if "event_type" in df.columns else ""
-df["species"] = df.get("species", "").map(normalize_species) if "species" in df.columns else ""
+
+# normalize event/species
+df["event_type"] = df["event_type"].map(normalize_event_type)
+df["species"] = df["species"].map(normalize_species)
+
+# datetime
 df["datetime"] = build_datetime(df)
 
-# If event_type is missing/empty, derive it from species
+# derive event_type if blank
 def _derive_type(row):
-    et = str(row.get("event_type", "")).strip().lower()
+    et = _safe_str(row.get("event_type", "")).lower()
     if et in ("animal", "human", "vehicle"):
         return et
-    sp = str(row.get("species", "")).strip().lower()
+    sp = _safe_str(row.get("species", "")).lower()
     if sp == "human":
         return "human"
     if sp == "vehicle":
@@ -237,26 +382,44 @@ def _derive_type(row):
 
 df["event_type"] = df.apply(_derive_type, axis=1)
 
+# camera cleanup: ensure non-empty when possible
+df["camera"] = df["camera"].map(lambda x: _safe_str(x).lower())
+df.loc[df["camera"] == "", "camera"] = "unknown"
+
 valid = df.dropna(subset=["datetime"]).copy()
 if valid.empty:
     st.error("No usable date/time data found in events.csv.")
     st.stop()
 
-# Image index (optional)
-image_map = {}
+# Drive indexes for images
+drive_index = {}
+if GDRIVE_ROOT_FOLDER_ID:
+    with st.spinner("Indexing Drive folders…"):
+        drive_index = _list_drive_files_recursive(GDRIVE_ROOT_FOLDER_ID)
+
+flat_image_map = {}
 if IMAGES_FOLDER_ID:
-    with st.spinner("Indexing photos folder…"):
-        image_map = list_images_in_folder(IMAGES_FOLDER_ID)
+    with st.spinner("Indexing legacy images folder…"):
+        flat_image_map = list_images_in_folder(IMAGES_FOLDER_ID)
 
 st.success(f"Loaded **{len(df):,}** sightings • Updated: **{last_mod_pretty}**")
 
 
 # ---------------------------
-# Sidebar (global filters)
+# Sidebar (filters)
 # ---------------------------
 st.sidebar.header("Filters")
 
 section = st.sidebar.radio("Section", options=["Wildlife", "People", "Vehicles"], index=0)
+
+# Camera filter (NEW)
+camera_options = sorted(valid["camera"].dropna().astype(str).unique().tolist())
+camera_default = [c for c in camera_options if c != "unknown"] or camera_options
+camera_filter = st.sidebar.multiselect(
+    "Camera",
+    options=camera_options,
+    default=camera_default,
+)
 
 min_dt = valid["datetime"].min()
 max_dt = valid["datetime"].max()
@@ -278,14 +441,13 @@ if not temp_series.empty:
         tmax += 1
     temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax))
 
-# Wildlife-only species filter (only affects wildlife section)
+# Wildlife-only species filter
 species_filter = []
 if section == "Wildlife":
     wild = valid[valid["event_type"] == "animal"].copy()
-    wild_species = sorted(
-        s for s in wild["species"].dropna().astype(str).unique().tolist()
-        if s and s not in ("human", "vehicle")
-    )
+    wild = wild[wild["species"].astype(str).str.strip() != ""]
+    wild = wild[~wild["species"].isin(["human", "vehicle"])]
+    wild_species = sorted(wild["species"].dropna().astype(str).unique().tolist())
     if wild_species:
         species_filter = st.sidebar.multiselect("Species", options=wild_species, default=[])
 
@@ -297,7 +459,14 @@ st.sidebar.markdown(f"<div class='small-muted'>Cache: {CACHE_TTL_SECONDS//3600}h
 # ---------------------------
 base = df.dropna(subset=["datetime"]).copy()
 
-# Section purity
+# camera filter first
+if camera_filter:
+    base = base[base["camera"].isin([c.lower() for c in camera_filter])]
+else:
+    # If user unselects all, show nothing instead of everything
+    base = base.iloc[0:0]
+
+# section purity
 if section == "Wildlife":
     base = base[base["event_type"] == "animal"]
 elif section == "People":
@@ -305,27 +474,27 @@ elif section == "People":
 else:
     base = base[base["event_type"] == "vehicle"]
 
-# Date filter
+# date filter
 start, end = date_range
 base = base[(base["datetime"].dt.date >= start) & (base["datetime"].dt.date <= end)]
 
-# Temp filter
+# temp filter
 if temp_range is not None:
     lo, hi = temp_range
     base = base[base["temp_f"].notna()]
     base = base[(base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
 else:
-    lo, hi = 10, 90  # fallback for chart scaling if no temp present
+    lo, hi = 10, 90
 
-# Species filter (wildlife only)
+# species filter
 if section == "Wildlife" and species_filter:
     base = base[base["species"].isin(species_filter)]
 
 if base.empty:
-    st.info("No sightings match your filters. Try expanding the date range or temperature range.")
+    st.info("No sightings match your filters. Try expanding the date range, temperature range, or camera selection.")
     st.stop()
 
-# Chart scaling: always at least 10–90
+# chart scaling: always at least 10–90
 temp_min = base["temp_f"].min() if base["temp_f"].notna().any() else 10
 temp_max = base["temp_f"].max() if base["temp_f"].notna().any() else 90
 Y_LO, Y_HI = clamp_temp_domain(temp_min, temp_max)
@@ -335,12 +504,13 @@ OPACITY = 0.86
 
 
 # ---------------------------
-# Header KPIs (section only)
+# Header KPIs
 # ---------------------------
-k1, k2, k3 = st.columns(3)
+k1, k2, k3, k4 = st.columns(4)
 k1.metric("Sightings", f"{len(base):,}")
-k2.metric("First day", str(start))
-k3.metric("Last day", str(end))
+k2.metric("Cameras", f"{base['camera'].nunique():,}")
+k3.metric("First day", str(start))
+k4.metric("Last day", str(end))
 
 
 # ---------------------------
@@ -356,11 +526,9 @@ with left:
     if chart_df.empty:
         st.info("No temperature data available for charting.")
     else:
-        # Simple, readable color rules
         if section == "Wildlife":
-            # keep legend readable: top species + "Other"
             counts = (
-                chart_df[chart_df["species"] != ""]
+                chart_df[chart_df["species"].astype(str).str.strip() != ""]
                 .groupby("species")
                 .size()
                 .sort_values(ascending=False)
@@ -373,15 +541,16 @@ with left:
                 alt.Tooltip("datetime:T", title="Time"),
                 alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
                 alt.Tooltip("species:N", title="Species"),
+                alt.Tooltip("camera:N", title="Camera"),
                 alt.Tooltip("filename:N", title="File"),
             ]
         else:
-            # People / Vehicles: single legend item, keep clean
             chart_df["group"] = section
             color_enc = alt.Color("group:N", legend=None)
             tooltip = [
                 alt.Tooltip("datetime:T", title="Time"),
                 alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
+                alt.Tooltip("camera:N", title="Camera"),
                 alt.Tooltip("filename:N", title="File"),
             ]
 
@@ -410,9 +579,8 @@ with left:
     if section == "Wildlife":
         st.caption("Bars are split by species (stacked) so you can see what makes up each hour/day.")
 
-        # Group species so the legend stays readable
         sp_counts = (
-            patt[patt["species"] != ""]
+            patt[patt["species"].astype(str).str.strip() != ""]
             .groupby("species")
             .size()
             .sort_values(ascending=False)
@@ -420,9 +588,8 @@ with left:
         top_species = sp_counts.head(8).index.tolist()
         patt["species_group"] = patt["species"].where(patt["species"].isin(top_species), other="Other")
 
-        # A) Stacked by species: hour
         by_hour = (
-            patt.groupby(["hour", "species_group"])
+            patt.groupby(["hour", "species_group"], observed=True)
             .size()
             .reset_index(name="Sightings")
             .sort_values(["hour", "species_group"])
@@ -443,9 +610,8 @@ with left:
             )
         )
 
-        # B) Stacked by species: weekday
         by_day = (
-            patt.groupby(["weekday", "species_group"])
+            patt.groupby(["weekday", "species_group"], observed=True)
             .size()
             .reset_index(name="Sightings")
         )
@@ -476,7 +642,6 @@ with left:
             st.altair_chart(day_chart, use_container_width=True)
 
     else:
-        # People / Vehicles: simple bars (no stacking)
         st.caption("Counts by hour and day of week.")
 
         by_hour = patt.groupby("hour").size().reset_index(name="Sightings").sort_values("hour")
@@ -519,10 +684,11 @@ with right:
     def _row_label(r):
         when = r["datetime"].strftime("%b %d • %I:%M %p")
         t = f"{int(round(r['temp_f']))}°F" if pd.notna(r.get("temp_f")) else "—"
+        cam = _safe_str(r.get("camera", "")).title()
         if section == "Wildlife":
-            spec = r.get("species", "") or "Unknown"
-            return f"{when} • {spec} • {t}"
-        return f"{when} • {section} • {t}"
+            spec = _safe_str(r.get("species", "")) or "Unknown"
+            return f"{when} • {spec} • {t} • {cam}"
+        return f"{when} • {section} • {t} • {cam}"
 
     view["label"] = view.apply(_row_label, axis=1)
 
@@ -533,30 +699,36 @@ with right:
     )
 
     row = view.loc[chosen_idx]
-    url, fid = resolve_image_link(row, image_map)
+
+    url, fid = resolve_image_link(row, drive_index, flat_image_map)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown(f"**When:** {row.get('datetime')}")
+    st.markdown(f"**Camera:** {str(row.get('camera','unknown')).title()}")
+
     if pd.notna(row.get("temp_f")):
         st.markdown(f"**Temperature:** {int(round(float(row.get('temp_f'))))} °F")
     else:
         st.markdown("**Temperature:** —")
 
     if section == "Wildlife":
-        st.markdown(f"**Species:** {row.get('species') or 'Unknown'}")
+        st.markdown(f"**Species:** {_safe_str(row.get('species')) or 'Unknown'}")
 
-    st.markdown(f"**File:** `{row.get('filename','')}`")
+    st.markdown(f"**File:** `{_safe_str(row.get('filename'))}`")
 
     if url:
         st.link_button("Open photo in Google Drive", url)
     else:
         st.warning(
             "Photo link not available.\n\n"
-            "Fix options:\n"
+            "To fix this with the new folder structure, set **gdrive.root_folder_id** in Streamlit secrets "
+            "(the Drive folder that contains `images/` and `events.csv`).\n\n"
+            "Fallback options:\n"
             "• Add `image_drive_id` or `image_url` columns to events.csv\n"
-            "• Or set `gdrive.images_folder_id` in secrets and share that folder with the service account"
+            "• Or set `gdrive.images_folder_id` if your images are in a single flat folder"
         )
 
+    # Preview (best-effort)
     if fid and st.toggle("Show photo preview", value=True):
         try:
             service = _drive_client()
@@ -571,11 +743,15 @@ with right:
     st.subheader("Section Table")
 
     # Section-pure table
-    show_cols = [c for c in ["datetime", "temp_f", "species", "filename"] if c in view.columns]
+    show_cols = [c for c in ["datetime", "camera", "temp_f", "species", "filename"] if c in view.columns]
     if section != "Wildlife":
-        show_cols = [c for c in ["datetime", "temp_f", "filename"] if c in view.columns]
+        show_cols = [c for c in ["datetime", "camera", "temp_f", "filename"] if c in view.columns]
 
-    st.dataframe(view.sort_values("datetime", ascending=False)[show_cols], use_container_width=True, hide_index=True)
+    st.dataframe(
+        view.sort_values("datetime", ascending=False)[show_cols],
+        use_container_width=True,
+        hide_index=True,
+    )
 
 st.divider()
 st.caption(
