@@ -48,16 +48,28 @@ if not image_index:
 
 
 # ---------------------------
-# TOP LEVEL TABS
+# VIEW SELECTOR (instead of tabs)
 # ---------------------------
-tab1, tab2 = st.tabs(["📊 Data Dashboard", "📸 Photo Browser"])
 
-# Track which tab is active using query params or session state
-if "active_tab" not in st.session_state:
-    st.session_state.active_tab = "dashboard"
+# Initialize view state
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "dashboard"
 
-with tab1:
-    st.session_state.active_tab = "dashboard"
+# View selector at top
+col1, col2, col3 = st.columns([1, 1, 8])
+with col1:
+    if st.button("📊 Data Dashboard", use_container_width=True, type="primary" if st.session_state.current_view == "dashboard" else "secondary"):
+        st.session_state.current_view = "dashboard"
+        st.rerun()
+with col2:
+    if st.button("📸 Photo Browser", use_container_width=True, type="primary" if st.session_state.current_view == "photos" else "secondary"):
+        st.session_state.current_view = "photos"
+        st.rerun()
+
+st.markdown("---")
+
+# Render appropriate view
+if st.session_state.current_view == "dashboard":
     
     st.title("Ranch Activity Dashboard")
     st.caption("Wildlife, people, and vehicle monitoring system")
@@ -181,9 +193,7 @@ with tab1:
         f"Cache: {CACHE_TTL_SECONDS//3600}h"
     )
 
-with tab2:
-    st.session_state.active_tab = "photos"
-    
+else:  # photos view
     # Clear sidebar for photos tab
     with st.sidebar:
         st.info("📸 Photo Browser filters are shown in the main area above")
