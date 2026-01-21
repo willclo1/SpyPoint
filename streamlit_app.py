@@ -10,8 +10,6 @@ st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 inject_css()
 
 # Initialize session state
-if "selected_event" not in st.session_state:
-    st.session_state.selected_event = None
 if "gallery_limit" not in st.session_state:
     st.session_state.gallery_limit = 8
 
@@ -52,7 +50,7 @@ if not image_index:
 # ---------------------------
 # TOP LEVEL TABS
 # ---------------------------
-tab1, tab2 = st.tabs(["Data Dashboard", "Photo Browser"])
+tab1, tab2 = st.tabs(["📊 Data Dashboard", "📸 Photo Browser"])
 
 with tab1:
     st.title("Ranch Activity Dashboard")
@@ -61,13 +59,13 @@ with tab1:
     st.success(f"Loaded **{len(df):,}** events • Last updated: **{last_mod_pretty}**")
     
     # ---------------------------
-    # Sidebar filters
+    # Sidebar filters for Data Dashboard
     # ---------------------------
-    st.sidebar.header("Filters")
-    section = st.sidebar.radio("Category", ["Wildlife", "People", "Vehicles"], index=0)
+    st.sidebar.header("Dashboard Filters")
+    section = st.sidebar.radio("Category", ["Wildlife", "People", "Vehicles"], index=0, key="dash_section")
 
     camera_options = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
-    selected_cameras = st.sidebar.multiselect("Cameras", options=camera_options, default=camera_options) if camera_options else []
+    selected_cameras = st.sidebar.multiselect("Cameras", options=camera_options, default=camera_options, key="dash_cameras") if camera_options else []
 
     valid_dt = df.dropna(subset=["datetime"])
     if valid_dt.empty:
@@ -82,6 +80,7 @@ with tab1:
         value=(min_dt.date(), max_dt.date()),
         min_value=min_dt.date(),
         max_value=max_dt.date(),
+        key="dash_dates"
     )
 
     temp_series = valid_dt["temp_f"].dropna()
@@ -92,7 +91,7 @@ with tab1:
         if tmin == tmax:
             tmin -= 1
             tmax += 1
-        temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax))
+        temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax), key="dash_temp")
 
     # Wildlife-only filters
     species_filter = []
@@ -103,9 +102,9 @@ with tab1:
     if section == "Wildlife":
         st.sidebar.markdown("---")
         st.sidebar.markdown("**Wildlife Options**")
-        include_other = st.sidebar.checkbox("Include 'Other'", value=False)
-        bar_style = st.sidebar.radio("Chart Style", ["Stacked", "Grouped"], index=0)
-        time_gran = st.sidebar.selectbox("Time Granularity", ["Hour", "2-hour", "4-hour"], index=0)
+        include_other = st.sidebar.checkbox("Include 'Other'", value=False, key="dash_include_other")
+        bar_style = st.sidebar.radio("Chart Style", ["Stacked", "Grouped"], index=0, key="dash_bar_style")
+        time_gran = st.sidebar.selectbox("Time Granularity", ["Hour", "2-hour", "4-hour"], index=0, key="dash_time_gran")
 
         wild_pool = df[df["event_type"] == "animal"].copy()
         if not include_other:
@@ -113,7 +112,7 @@ with tab1:
 
         sp_opts = sorted([s for s in wild_pool["wildlife_label"].unique().tolist() if s])
         if sp_opts:
-            species_filter = st.sidebar.multiselect("Filter Animals", options=sp_opts, default=[])
+            species_filter = st.sidebar.multiselect("Filter Animals", options=sp_opts, default=[], key="dash_species")
 
     st.sidebar.markdown("---")
     st.sidebar.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
@@ -180,85 +179,104 @@ with tab2:
     st.caption("Browse and view individual sightings")
     
     # ---------------------------
-    # Sidebar filters (reuse from tab1)
+    # Inline Filters (not in sidebar)
     # ---------------------------
-    st.sidebar.header("Filters")
-    section_photos = st.sidebar.radio("Category", ["Wildlife", "People", "Vehicles"], index=0, key="section_photos")
-
-    camera_options_photos = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
-    selected_cameras_photos = st.sidebar.multiselect("Cameras", options=camera_options_photos, default=camera_options_photos, key="cameras_photos") if camera_options_photos else []
-
-    valid_dt_photos = df.dropna(subset=["datetime"])
-    if not valid_dt_photos.empty:
-        min_dt_photos = valid_dt_photos["datetime"].min()
-        max_dt_photos = valid_dt_photos["datetime"].max()
-
-        date_range_photos = st.sidebar.date_input(
-            "Date Range",
-            value=(min_dt_photos.date(), max_dt_photos.date()),
-            min_value=min_dt_photos.date(),
-            max_value=max_dt_photos.date(),
-            key="date_range_photos"
-        )
-
-        temp_series_photos = valid_dt_photos["temp_f"].dropna()
-        temp_range_photos = None
-        if not temp_series_photos.empty:
-            tmin_photos = int(temp_series_photos.min())
-            tmax_photos = int(temp_series_photos.max())
-            if tmin_photos == tmax_photos:
-                tmin_photos -= 1
-                tmax_photos += 1
-            temp_range_photos = st.sidebar.slider("Temperature (°F)", min_value=tmin_photos, max_value=tmax_photos, value=(tmin_photos, tmax_photos), key="temp_photos")
-
-        # Wildlife-only filters
-        species_filter_photos = []
-        include_other_photos = False
-
-        if section_photos == "Wildlife":
-            st.sidebar.markdown("---")
-            st.sidebar.markdown("**Wildlife Options**")
-            include_other_photos = st.sidebar.checkbox("Include 'Other'", value=False, key="include_other_photos")
-
-            wild_pool_photos = df[df["event_type"] == "animal"].copy()
-            if not include_other_photos:
-                wild_pool_photos = wild_pool_photos[wild_pool_photos["wildlife_label"] != "Other"]
-
-            sp_opts_photos = sorted([s for s in wild_pool_photos["wildlife_label"].unique().tolist() if s])
-            if sp_opts_photos:
-                species_filter_photos = st.sidebar.multiselect("Filter Animals", options=sp_opts_photos, default=[], key="species_photos")
-
-        # Apply filters for photos
-        base_photos = df.dropna(subset=["datetime"]).copy()
-
-        if selected_cameras_photos:
-            base_photos = base_photos[base_photos["camera"].isin(selected_cameras_photos)]
-
-        if section_photos == "Wildlife":
-            base_photos = base_photos[base_photos["event_type"] == "animal"].copy()
-            if not include_other_photos:
-                base_photos = base_photos[base_photos["wildlife_label"] != "Other"]
-        elif section_photos == "People":
-            base_photos = base_photos[base_photos["event_type"] == "human"].copy()
+    st.markdown("### Filters")
+    
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    
+    with filter_col1:
+        section_photos = st.selectbox("Category", ["Wildlife", "People", "Vehicles"], index=0, key="photo_section")
+    
+    with filter_col2:
+        camera_options_photos = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
+        if camera_options_photos:
+            selected_cameras_photos = st.multiselect("Cameras", options=camera_options_photos, default=camera_options_photos, key="photo_cameras")
         else:
-            base_photos = base_photos[base_photos["event_type"] == "vehicle"].copy()
-
-        start_photos, end_photos = date_range_photos
-        base_photos = base_photos[(base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)]
-
-        if temp_range_photos is not None:
-            lo_photos, hi_photos = temp_range_photos
-            base_photos = base_photos[base_photos["temp_f"].notna()]
-            base_photos = base_photos[(base_photos["temp_f"] >= lo_photos) & (base_photos["temp_f"] <= hi_photos)]
-
-        if section_photos == "Wildlife" and species_filter_photos:
-            base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
-
-        render_listing_and_viewer(
-            base=base_photos,
-            section=section_photos,
-            include_other=include_other_photos,
-            image_index=image_index,
-            drive_client_factory=_drive_client,
-            download_bytes_func=_download_drive_file_bytes,
-        )
+            selected_cameras_photos = []
+    
+    with filter_col3:
+        valid_dt_photos = df.dropna(subset=["datetime"])
+        if not valid_dt_photos.empty:
+            min_dt_photos = valid_dt_photos["datetime"].min()
+            max_dt_photos = valid_dt_photos["datetime"].max()
+            
+            date_range_photos = st.date_input(
+                "Date Range",
+                value=(min_dt_photos.date(), max_dt_photos.date()),
+                min_value=min_dt_photos.date(),
+                max_value=max_dt_photos.date(),
+                key="photo_dates"
+            )
+    
+    # Additional filters row
+    filter_col4, filter_col5, filter_col6 = st.columns(3)
+    
+    temp_range_photos = None
+    if not valid_dt_photos.empty:
+        temp_series_photos = valid_dt_photos["temp_f"].dropna()
+        if not temp_series_photos.empty:
+            with filter_col4:
+                tmin_photos = int(temp_series_photos.min())
+                tmax_photos = int(temp_series_photos.max())
+                if tmin_photos == tmax_photos:
+                    tmin_photos -= 1
+                    tmax_photos += 1
+                temp_range_photos = st.slider("Temperature (°F)", min_value=tmin_photos, max_value=tmax_photos, value=(tmin_photos, tmax_photos), key="photo_temp")
+    
+    # Wildlife-specific filters
+    species_filter_photos = []
+    include_other_photos = False
+    
+    if section_photos == "Wildlife":
+        with filter_col5:
+            include_other_photos = st.checkbox("Include 'Other'", value=False, key="photo_include_other")
+        
+        wild_pool_photos = df[df["event_type"] == "animal"].copy()
+        if not include_other_photos:
+            wild_pool_photos = wild_pool_photos[wild_pool_photos["wildlife_label"] != "Other"]
+        
+        sp_opts_photos = sorted([s for s in wild_pool_photos["wildlife_label"].unique().tolist() if s])
+        if sp_opts_photos:
+            with filter_col6:
+                species_filter_photos = st.multiselect("Animals", options=sp_opts_photos, default=[], key="photo_species")
+    
+    st.markdown("---")
+    
+    # Apply filters for photos
+    base_photos = df.dropna(subset=["datetime"]).copy()
+    
+    if selected_cameras_photos:
+        base_photos = base_photos[base_photos["camera"].isin(selected_cameras_photos)]
+    
+    if section_photos == "Wildlife":
+        base_photos = base_photos[base_photos["event_type"] == "animal"].copy()
+        if not include_other_photos:
+            base_photos = base_photos[base_photos["wildlife_label"] != "Other"]
+    elif section_photos == "People":
+        base_photos = base_photos[base_photos["event_type"] == "human"].copy()
+    else:
+        base_photos = base_photos[base_photos["event_type"] == "vehicle"].copy()
+    
+    start_photos, end_photos = date_range_photos
+    base_photos = base_photos[(base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)]
+    
+    if temp_range_photos is not None:
+        lo_photos, hi_photos = temp_range_photos
+        base_photos = base_photos[base_photos["temp_f"].notna()]
+        base_photos = base_photos[(base_photos["temp_f"] >= lo_photos) & (base_photos["temp_f"] <= hi_photos)]
+    
+    if section_photos == "Wildlife" and species_filter_photos:
+        base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
+    
+    # Show count
+    st.info(f"Showing {len(base_photos):,} sightings")
+    
+    render_listing_and_viewer(
+        base=base_photos,
+        section=section_photos,
+        include_other=include_other_photos,
+        image_index=image_index,
+        drive_client_factory=_drive_client,
+        download_bytes_func=_download_drive_file_bytes,
+    )
