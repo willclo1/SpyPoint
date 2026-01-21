@@ -1,4 +1,4 @@
-# app.py
+# streamlit_app.py
 import streamlit as st
 
 from data_prep import nice_last_modified, prep_df
@@ -9,8 +9,14 @@ from ui_components import inject_css, render_patterns, render_timeline, render_l
 st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 inject_css()
 
-st.title("Ranch Activity")
-st.caption("Wildlife, people, and vehicles — separated. Select a sighting to view the photo.")
+# Initialize session state
+if "selected_event" not in st.session_state:
+    st.session_state.selected_event = None
+if "gallery_limit" not in st.session_state:
+    st.session_state.gallery_limit = 12
+
+st.title("Ranch Activity Dashboard")
+st.caption("Wildlife, people, and vehicle monitoring system")
 
 
 def _require_secret(path: str):
@@ -31,20 +37,19 @@ CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
 # ---------------------------
 # Load data + index images
 # ---------------------------
-with st.spinner("Loading events…"):
+with st.spinner("Loading events..."):
     raw = load_events_from_drive(DRIVE_FILE_ID)
 df = prep_df(raw)
 
 last_mod_pretty = nice_last_modified(raw.attrs.get("drive_modified", ""))
-st.success(f"Loaded **{len(df):,}** rows • Updated: **{last_mod_pretty}**")
+st.success(f"Loaded **{len(df):,}** events • Last updated: **{last_mod_pretty}**")
 
-with st.spinner("Indexing photos…"):
+with st.spinner("Indexing photos..."):
     image_index = index_images_by_camera(ROOT_FOLDER_ID)
 
 if not image_index:
     st.warning(
-        "No camera folders were found under your Drive root folder.\n\n"
-        "Make sure `gdrive.root_folder_id` points to the folder that contains camera folders (gate/, feeder/, ravine/...)."
+        "No camera folders found. Ensure `gdrive.root_folder_id` points to the folder containing camera subfolders."
     )
 
 
@@ -52,21 +57,21 @@ if not image_index:
 # Sidebar filters
 # ---------------------------
 st.sidebar.header("Filters")
-section = st.sidebar.radio("Section", ["Wildlife", "People", "Vehicles"], index=0)
+section = st.sidebar.radio("Category", ["Wildlife", "People", "Vehicles"], index=0)
 
 camera_options = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
-selected_cameras = st.sidebar.multiselect("Camera", options=camera_options, default=camera_options) if camera_options else []
+selected_cameras = st.sidebar.multiselect("Cameras", options=camera_options, default=camera_options) if camera_options else []
 
 valid_dt = df.dropna(subset=["datetime"])
 if valid_dt.empty:
-    st.error("No usable date/time rows found in events.csv.")
+    st.error("No valid date/time data found in events file")
     st.stop()
 
 min_dt = valid_dt["datetime"].min()
 max_dt = valid_dt["datetime"].max()
 
 date_range = st.sidebar.date_input(
-    "Date range",
+    "Date Range",
     value=(min_dt.date(), max_dt.date()),
     min_value=min_dt.date(),
     max_value=max_dt.date(),
@@ -89,9 +94,11 @@ bar_style = "Stacked"
 time_gran = "Hour"
 
 if section == "Wildlife":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Wildlife Options**")
     include_other = st.sidebar.checkbox("Include 'Other'", value=False)
-    bar_style = st.sidebar.radio("Bar style", ["Stacked", "Grouped"], index=0)
-    time_gran = st.sidebar.selectbox("Time granularity", ["Hour", "2-hour", "4-hour"], index=0)
+    bar_style = st.sidebar.radio("Chart Style", ["Stacked", "Grouped"], index=0)
+    time_gran = st.sidebar.selectbox("Time Granularity", ["Hour", "2-hour", "4-hour"], index=0)
 
     wild_pool = df[df["event_type"] == "animal"].copy()
     if not include_other:
@@ -99,9 +106,10 @@ if section == "Wildlife":
 
     sp_opts = sorted([s for s in wild_pool["wildlife_label"].unique().tolist() if s])
     if sp_opts:
-        species_filter = st.sidebar.multiselect("Animals", options=sp_opts, default=[])
+        species_filter = st.sidebar.multiselect("Filter Animals", options=sp_opts, default=[])
 
-st.sidebar.markdown(f"<div class='small-muted'>Cache: {CACHE_TTL_SECONDS//3600}h</div>", unsafe_allow_html=True)
+st.sidebar.markdown("---")
+st.sidebar.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
 
 
 # ---------------------------
@@ -133,7 +141,7 @@ if section == "Wildlife" and species_filter:
     base = base[base["wildlife_label"].isin(species_filter)]
 
 if base.empty:
-    st.info("No sightings match your filters.")
+    st.info("No events match the current filters")
     st.stop()
 
 
@@ -141,30 +149,47 @@ if base.empty:
 # KPIs
 # ---------------------------
 k1, k2, k3 = st.columns(3)
-k1.metric("Sightings", f"{len(base):,}")
-k2.metric("First day", str(start))
-k3.metric("Last day", str(end))
+k1.metric("Total Sightings", f"{len(base):,}")
+k2.metric("Date Range Start", str(start))
+k3.metric("Date Range End", str(end))
 
+st.markdown("---")
 
 # ---------------------------
-# Layout
+# DATA SECTION (Full Width)
 # ---------------------------
-left, right = st.columns([2.2, 1])
+st.header("Data Analysis")
 
-with left:
-    render_timeline(base, section)
-    st.markdown("---")
-    render_patterns(base, section, include_other, bar_style, time_gran)
+render_timeline(base, section)
 
-with right:
-    render_listing_and_viewer(
-        base=base,
-        section=section,
-        include_other=include_other,
-        image_index=image_index,
-        drive_client_factory=_drive_client,
-        download_bytes_func=_download_drive_file_bytes,
-    )
+st.markdown("---")
 
+render_patterns(base, section, include_other, bar_style, time_gran)
+
+st.markdown("---")
+st.markdown("---")
+
+# ---------------------------
+# PHOTO VIEWER SECTION (Separate)
+# ---------------------------
+st.header("Photo Browser")
+st.caption("Browse and view individual sightings")
+
+render_listing_and_viewer(
+    base=base,
+    section=section,
+    include_other=include_other,
+    image_index=image_index,
+    drive_client_factory=_drive_client,
+    download_bytes_func=_download_drive_file_bytes,
+)
+
+# ---------------------------
+# Footer
+# ---------------------------
 st.divider()
-st.caption(f"Source: {raw.attrs.get('drive_name','events.csv')} • Updated {last_mod_pretty} • Cache {CACHE_TTL_SECONDS//3600}h")
+st.caption(
+    f"Data source: {raw.attrs.get('drive_name','events.csv')} • "
+    f"Updated: {last_mod_pretty} • "
+    f"Cache: {CACHE_TTL_SECONDS//3600}h"
+)
