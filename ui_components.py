@@ -27,9 +27,14 @@ def inject_css():
     st.markdown(
         """
         <style>
+          /* Fix tabs being covered by header */
+          .stTabs [data-baseweb="tab-list"] {
+            margin-top: 1rem;
+          }
+          
           /* Base Layout */
           .block-container { 
-            padding-top: 1rem; 
+            padding-top: 3rem; 
             padding-bottom: 2.5rem; 
             max-width: 1400px; 
           }
