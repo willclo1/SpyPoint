@@ -105,10 +105,11 @@ def inject_css():
             background: rgba(255,255,255,0.03);
             border: 1.5px solid rgba(255,255,255,0.1);
             border-radius: 10px;
-            padding: 0.85rem;
+            padding: 0;
             cursor: pointer;
             transition: all 0.2s ease;
             position: relative;
+            overflow: hidden;
           }
           
           .sighting-card:hover {
@@ -136,15 +137,19 @@ def inject_css():
           
           .card-thumbnail {
             width: 100%;
-            height: 120px;
+            height: 160px;
             background: rgba(0,0,0,0.3);
-            border-radius: 6px;
-            margin-bottom: 0.75rem;
+            border-radius: 0;
+            margin-bottom: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             position: relative;
+          }
+          
+          .card-content {
+            padding: 0.85rem;
           }
           
           .card-thumbnail img {
@@ -649,34 +654,45 @@ def render_listing_and_viewer(
             temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
             
             with cols[col_idx]:
-                # Card container
-                st.markdown(f'<div class="sighting-card {active_class}">', unsafe_allow_html=True)
-                
                 # Try to load thumbnail
                 url, fid = resolve_image_link(cam, fn, image_index)
                 
-                if fid:
-                    img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
-                    if img_bytes:
-                        st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
-                        st.image(img_bytes, use_container_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
-                
-                # Card content
-                st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Click handler
-                if st.button("Select", key=f"card_{event_id}", use_container_width=True):
+                # Create clickable card using button
+                if st.button(
+                    label="view",
+                    key=f"card_{event_id}",
+                    use_container_width=True,
+                    type="secondary",
+                    disabled=False,
+                ):
                     st.session_state.selected_event = event_id
                     st.rerun()
+                
+                # Card container (visual only, displayed above button)
+                card_container = st.container()
+                with card_container:
+                    st.markdown(f'<div class="sighting-card {active_class}">', unsafe_allow_html=True)
+                    
+                    # Thumbnail
+                    if fid:
+                        img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
+                        if img_bytes:
+                            st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
+                            st.image(img_bytes, use_container_width=True)
+                            st.markdown('</div>', unsafe_allow_html=True)
+                        else:
+                            st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                    
+                    # Card content
+                    st.markdown('<div class="card-content">', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
     
     # Load More button
     if len(view) > st.session_state.gallery_limit:
