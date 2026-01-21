@@ -666,7 +666,7 @@ def render_listing_and_viewer(
     # Load More button
     if len(view) > st.session_state.gallery_limit:
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
-        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key="load_more"):
+        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key=f"load_more_{section}"):
             st.session_state.gallery_limit += 8
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
