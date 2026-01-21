@@ -52,70 +52,77 @@ if not image_index:
 # ---------------------------
 tab1, tab2 = st.tabs(["📊 Data Dashboard", "📸 Photo Browser"])
 
+# Track which tab is active using query params or session state
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "dashboard"
+
 with tab1:
+    st.session_state.active_tab = "dashboard"
+    
     st.title("Ranch Activity Dashboard")
     st.caption("Wildlife, people, and vehicle monitoring system")
     
     st.success(f"Loaded **{len(df):,}** events • Last updated: **{last_mod_pretty}**")
     
     # ---------------------------
-    # Sidebar filters for Data Dashboard
+    # Sidebar filters for Data Dashboard ONLY
     # ---------------------------
-    st.sidebar.header("Dashboard Filters")
-    section = st.sidebar.radio("Category", ["Wildlife", "People", "Vehicles"], index=0, key="dash_section")
+    with st.sidebar:
+        st.header("Dashboard Filters")
+        section = st.radio("Category", ["Wildlife", "People", "Vehicles"], index=0, key="dash_section")
 
-    camera_options = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
-    selected_cameras = st.sidebar.multiselect("Cameras", options=camera_options, default=camera_options, key="dash_cameras") if camera_options else []
+        camera_options = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
+        selected_cameras = st.multiselect("Cameras", options=camera_options, default=camera_options, key="dash_cameras") if camera_options else []
 
-    valid_dt = df.dropna(subset=["datetime"])
-    if valid_dt.empty:
-        st.error("No valid date/time data found in events file")
-        st.stop()
+        valid_dt = df.dropna(subset=["datetime"])
+        if valid_dt.empty:
+            st.error("No valid date/time data found in events file")
+            st.stop()
 
-    min_dt = valid_dt["datetime"].min()
-    max_dt = valid_dt["datetime"].max()
+        min_dt = valid_dt["datetime"].min()
+        max_dt = valid_dt["datetime"].max()
 
-    date_range = st.sidebar.date_input(
-        "Date Range",
-        value=(min_dt.date(), max_dt.date()),
-        min_value=min_dt.date(),
-        max_value=max_dt.date(),
-        key="dash_dates"
-    )
+        date_range = st.date_input(
+            "Date Range",
+            value=(min_dt.date(), max_dt.date()),
+            min_value=min_dt.date(),
+            max_value=max_dt.date(),
+            key="dash_dates"
+        )
 
-    temp_series = valid_dt["temp_f"].dropna()
-    temp_range = None
-    if not temp_series.empty:
-        tmin = int(temp_series.min())
-        tmax = int(temp_series.max())
-        if tmin == tmax:
-            tmin -= 1
-            tmax += 1
-        temp_range = st.sidebar.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax), key="dash_temp")
+        temp_series = valid_dt["temp_f"].dropna()
+        temp_range = None
+        if not temp_series.empty:
+            tmin = int(temp_series.min())
+            tmax = int(temp_series.max())
+            if tmin == tmax:
+                tmin -= 1
+                tmax += 1
+            temp_range = st.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax), key="dash_temp")
 
-    # Wildlife-only filters
-    species_filter = []
-    include_other = False
-    bar_style = "Stacked"
-    time_gran = "Hour"
+        # Wildlife-only filters
+        species_filter = []
+        include_other = False
+        bar_style = "Stacked"
+        time_gran = "Hour"
 
-    if section == "Wildlife":
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("**Wildlife Options**")
-        include_other = st.sidebar.checkbox("Include 'Other'", value=False, key="dash_include_other")
-        bar_style = st.sidebar.radio("Chart Style", ["Stacked", "Grouped"], index=0, key="dash_bar_style")
-        time_gran = st.sidebar.selectbox("Time Granularity", ["Hour", "2-hour", "4-hour"], index=0, key="dash_time_gran")
+        if section == "Wildlife":
+            st.markdown("---")
+            st.markdown("**Wildlife Options**")
+            include_other = st.checkbox("Include 'Other'", value=False, key="dash_include_other")
+            bar_style = st.radio("Chart Style", ["Stacked", "Grouped"], index=0, key="dash_bar_style")
+            time_gran = st.selectbox("Time Granularity", ["Hour", "2-hour", "4-hour"], index=0, key="dash_time_gran")
 
-        wild_pool = df[df["event_type"] == "animal"].copy()
-        if not include_other:
-            wild_pool = wild_pool[wild_pool["wildlife_label"] != "Other"]
+            wild_pool = df[df["event_type"] == "animal"].copy()
+            if not include_other:
+                wild_pool = wild_pool[wild_pool["wildlife_label"] != "Other"]
 
-        sp_opts = sorted([s for s in wild_pool["wildlife_label"].unique().tolist() if s])
-        if sp_opts:
-            species_filter = st.sidebar.multiselect("Filter Animals", options=sp_opts, default=[], key="dash_species")
+            sp_opts = sorted([s for s in wild_pool["wildlife_label"].unique().tolist() if s])
+            if sp_opts:
+                species_filter = st.multiselect("Filter Animals", options=sp_opts, default=[], key="dash_species")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
 
     # ---------------------------
     # Apply filters
@@ -175,6 +182,14 @@ with tab1:
     )
 
 with tab2:
+    st.session_state.active_tab = "photos"
+    
+    # Clear sidebar for photos tab
+    with st.sidebar:
+        st.info("📸 Photo Browser filters are shown in the main area above")
+        st.markdown("---")
+        st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+    
     st.title("Photo Browser")
     st.caption("Browse and view individual sightings")
     
