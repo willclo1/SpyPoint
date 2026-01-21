@@ -575,7 +575,7 @@ def render_listing_and_viewer(
     download_bytes_func,
 ):
     """
-    Photo gallery - no selection, just browsing
+    Photo gallery - filtered data passed in
     """
     
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
@@ -583,21 +583,8 @@ def render_listing_and_viewer(
     if section == "Wildlife" and not include_other:
         view = view[view["wildlife_label"] != "Other"]
 
-    # Search
-    search_container = st.container()
-    with search_container:
-        q = st.text_input("Search by animal, camera, or filename", value="", key=f"search_input_{section}", on_change=None)
-    if q.strip():
-        ql = q.strip().lower()
-        mask = (
-            view["wildlife_label"].astype(str).str.lower().str.contains(ql, na=False)
-            | view["camera"].astype(str).str.lower().str.contains(ql, na=False)
-            | view["filename"].astype(str).str.lower().str.contains(ql, na=False)
-        )
-        view = view[mask]
-
     if view.empty:
-        st.info("No sightings match your search")
+        st.info("No sightings match your filters")
         return
 
     # Pagination
