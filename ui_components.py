@@ -32,6 +32,11 @@ def inject_css():
             margin-top: 1rem;
           }
           
+          /* Hide sidebar on photos tab */
+          [data-testid="stSidebar"][data-photos-tab="true"] {
+            display: none;
+          }
+          
           /* Base Layout */
           .block-container { 
             padding-top: 3rem; 
@@ -587,7 +592,7 @@ def render_listing_and_viewer(
         st.info("No sightings match your filters")
         return
 
-    # Pagination
+    # Ensure gallery_limit is initialized
     if "gallery_limit" not in st.session_state:
         st.session_state.gallery_limit = 8
     
