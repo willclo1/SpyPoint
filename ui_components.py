@@ -1,5 +1,7 @@
 # ui_components.py
 from typing import Dict, Tuple
+import base64
+import io
 
 import altair as alt
 import pandas as pd
@@ -28,6 +30,106 @@ def inject_css():
           .stAlert { border-radius: 14px; }
           section[data-testid="stSidebar"] { padding-top: 1rem; }
           button[kind="secondary"], button[kind="primary"] { border-radius: 10px; }
+          
+          /* Enhanced Photo Viewer Styles */
+          .photo-viewer {
+            border-radius: 16px;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+          }
+          
+          .photo-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+          }
+          
+          .photo-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+            image-rendering: -webkit-optimize-contrast;
+          }
+          
+          .photo-metadata {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            margin-top: 1rem;
+          }
+          
+          .metadata-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+          
+          .metadata-label {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+          }
+          
+          .metadata-value {
+            font-size: 1rem;
+            font-weight: 500;
+          }
+          
+          .photo-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+          }
+          
+          .loading-skeleton {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+            border-radius: 12px;
+          }
+          
+          @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+          
+          .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+          }
+          
+          .thumbnail {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+          }
+          
+          .thumbnail:hover {
+            border-color: rgba(255,255,255,0.3);
+            transform: scale(1.05);
+          }
+          
+          .thumbnail.active {
+            border-color: #4CAF50;
+          }
         </style>
         """,
         unsafe_allow_html=True,
@@ -103,7 +205,6 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         patt["time_label"] = patt["hour"].astype(int).astype(str) + ":00"
 
     if section != "Wildlife":
-        # People/Vehicles: simple counts
         by_time = patt.groupby("time_label").size().reset_index(name="Sightings")
         by_time["__h"] = by_time["time_label"].str.split(":").str[0].astype(int)
         by_time = by_time.sort_values("__h")
@@ -140,7 +241,6 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             st.altair_chart(day_chart, width="stretch")
         return
 
-    # Wildlife
     if not include_other:
         patt = patt[patt["wildlife_label"] != "Other"]
 
@@ -235,6 +335,96 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         st.altair_chart(day_chart, width="stretch")
 
 
+def _render_photo_viewer(row, cam, fn, url, fid, section, drive_client_factory, download_bytes_func):
+    """Render the enhanced photo viewer."""
+    
+    st.markdown('<div class="photo-viewer">', unsafe_allow_html=True)
+    
+    # Title
+    st.markdown(f'<div class="photo-title">{row.get("friendly_name", "")}</div>', unsafe_allow_html=True)
+    
+    # Photo container with loading state
+    photo_placeholder = st.empty()
+    
+    if fid:
+        try:
+            # Show loading skeleton
+            photo_placeholder.markdown('<div class="loading-skeleton"></div>', unsafe_allow_html=True)
+            
+            # Load image
+            service = drive_client_factory()
+            img_bytes = download_bytes_func(service, fid)
+            
+            # Display image in container
+            photo_placeholder.markdown('<div class="photo-container">', unsafe_allow_html=True)
+            st.image(img_bytes, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        except Exception as e:
+            photo_placeholder.error(f"Could not load photo: {e}")
+    else:
+        photo_placeholder.warning("Photo not found in Drive")
+    
+    # Metadata grid
+    st.markdown('<div class="photo-metadata">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="metadata-item">
+            <div class="metadata-label">Camera</div>
+            <div class="metadata-value">{cam or '—'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if section == "Wildlife":
+            animal = row.get('wildlife_label') or 'Other'
+            st.markdown(f"""
+            <div class="metadata-item">
+                <div class="metadata-label">Animal</div>
+                <div class="metadata-value">{animal}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            event_type = (row.get('event_type') or '').capitalize()
+            st.markdown(f"""
+            <div class="metadata-item">
+                <div class="metadata-label">Type</div>
+                <div class="metadata-value">{event_type}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col2:
+        dt_str = str(row.get('datetime'))
+        st.markdown(f"""
+        <div class="metadata-item">
+            <div class="metadata-label">Date & Time</div>
+            <div class="metadata-value">{dt_str}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if pd.notna(row.get("temp_f")):
+            temp = int(round(float(row.get('temp_f'))))
+            st.markdown(f"""
+            <div class="metadata-item">
+                <div class="metadata-label">Temperature</div>
+                <div class="metadata-value">{temp} °F</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Action buttons
+    st.markdown("")
+    if url:
+        st.link_button("🔗 Open in Google Drive", url, use_container_width=True)
+    
+    st.markdown(f'<div style="font-size: 0.85rem; opacity: 0.6; margin-top: 0.75rem;">File: {fn}</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def render_listing_and_viewer(
     base: pd.DataFrame,
     section: str,
@@ -244,21 +434,17 @@ def render_listing_and_viewer(
     download_bytes_func,
 ):
     """
-    Adds your "table/listing of files" workflow:
-      - show filtered events as a table
-      - select one row
-      - show photo + metadata
+    Enhanced table listing with beautiful photo viewer.
     """
     st.subheader("Browse Sightings")
 
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
-    # Wildlife: hide Other by default (unless include_other)
     if section == "Wildlife" and not include_other:
         view = view[view["wildlife_label"] != "Other"]
 
     # Search
-    q = st.text_input("Search (animal, camera, filename)", value="")
+    q = st.text_input("🔍 Search (animal, camera, filename)", value="", key="search_input")
     if q.strip():
         ql = q.strip().lower()
         mask = (
@@ -292,8 +478,8 @@ def render_listing_and_viewer(
     listing.rename(columns={label_col: "label"}, inplace=True)
     listing["Select"] = False
 
-    # Let user control how many rows to display
-    limit = st.slider("Rows to show", min_value=50, max_value=500, value=150, step=50)
+    # Rows control
+    limit = st.slider("📊 Rows to display", min_value=50, max_value=500, value=150, step=50, key="row_limit")
     listing = listing.head(limit)
 
     edited = st.data_editor(
@@ -302,7 +488,9 @@ def render_listing_and_viewer(
         use_container_width=True,
         disabled=["friendly_name", "datetime", "camera", "label", "temp_f", "filename"],
         column_config={
-            "friendly_name": st.column_config.TextColumn("Sighting"),
+            "Select": st.column_config.CheckboxColumn("📌", width="small"),
+            "friendly_name": st.column_config.TextColumn("Sighting", width="large"),
+            "datetime": st.column_config.DatetimeColumn("Date & Time", format="MMM DD, YYYY h:mm a"),
             "temp_f": st.column_config.NumberColumn("Temp (°F)", format="%.0f"),
             "label": st.column_config.TextColumn("Animal/Type"),
         },
@@ -311,7 +499,7 @@ def render_listing_and_viewer(
 
     chosen = edited[edited["Select"] == True]
     if chosen.empty:
-        st.caption("Select a row above to preview it.")
+        st.caption("👆 Select a row above to view the photo")
         return
 
     chosen_name = chosen.iloc[0]["friendly_name"]
@@ -322,34 +510,6 @@ def render_listing_and_viewer(
     url, fid = resolve_image_link(cam, fn, image_index)
 
     st.markdown("---")
-    st.subheader("Selected Sighting")
+    st.subheader("📸 Photo Viewer")
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f"**{row.get('friendly_name','')}**")
-    st.markdown(f"**Camera:** {cam or '—'}")
-    st.markdown(f"**When:** {row.get('datetime')}")
-    if pd.notna(row.get("temp_f")):
-        st.markdown(f"**Temperature:** {int(round(float(row.get('temp_f'))))} °F")
-
-    if section == "Wildlife":
-        st.markdown(f"**Animal:** {row.get('wildlife_label') or 'Other'}")
-    else:
-        st.markdown(f"**Type:** {(row.get('event_type') or '').capitalize()}")
-
-    st.markdown(f"**File:** `{fn}`")
-
-    if url:
-        st.link_button("Open in Google Drive", url)
-    else:
-        st.warning("Photo link not found in Drive for this row.")
-
-    # Inline preview
-    if fid and st.toggle("Show preview", value=True, key=f"preview_{section}"):
-        try:
-            service = drive_client_factory()
-            img_bytes = download_bytes_func(service, fid)
-            st.image(img_bytes, use_container_width=True)
-        except Exception as e:
-            st.error(f"Could not load preview: {e}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    _render_photo_viewer(row, cam, fn, url, fid, section, drive_client_factory, download_bytes_func)
