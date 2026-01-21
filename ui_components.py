@@ -2,6 +2,7 @@
 from typing import Dict, Tuple
 import base64
 import io
+import hashlib
 
 import altair as alt
 import pandas as pd
@@ -9,6 +10,17 @@ import streamlit as st
 
 from data_prep import clamp_temp_domain
 from drive_io import resolve_image_link
+
+
+@st.cache_data(ttl=3600)
+def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_func):
+    """Cache thumbnail downloads to avoid repeated API calls."""
+    try:
+        service = _drive_client_factory()
+        img_bytes = _download_bytes_func(service, file_id)
+        return img_bytes
+    except Exception as e:
+        return None
 
 
 def inject_css():
@@ -595,64 +607,82 @@ def render_listing_and_viewer(
 
     # Pagination
     if "gallery_limit" not in st.session_state:
-        st.session_state.gallery_limit = 12
+        st.session_state.gallery_limit = 8
     
     display_view = view.head(st.session_state.gallery_limit)
     
-    # Card Gallery
-    st.markdown('<div class="card-gallery">', unsafe_allow_html=True)
+    # Card Gallery - use columns for proper layout
+    cols_per_row = 2
+    rows = (len(display_view) + cols_per_row - 1) // cols_per_row
     
-    for idx, row in display_view.iterrows():
-        event_id = row.get("event_id", "")
-        cam = str(row.get("camera", "")).strip()
-        fn = str(row.get("filename", "")).strip()
-        dt = row.get("datetime")
-        temp = row.get("temp_f")
+    for row_idx in range(rows):
+        cols = st.columns(cols_per_row)
         
-        if section == "Wildlife":
-            label = row.get("wildlife_label", "Other")
-        else:
-            label = (row.get("event_type", "")).capitalize()
-        
-        # Determine active state
-        active_class = ""
-        if "selected_event" in st.session_state and st.session_state.selected_event == event_id:
+        for col_idx in range(cols_per_row):
+            item_idx = row_idx * cols_per_row + col_idx
+            if item_idx >= len(display_view):
+                break
+            
+            row = display_view.iloc[item_idx]
+            event_id = row.get("event_id", "")
+            cam = str(row.get("camera", "")).strip()
+            fn = str(row.get("filename", "")).strip()
+            dt = row.get("datetime")
+            temp = row.get("temp_f")
+            
             if section == "Wildlife":
-                active_class = "active"
-            elif section == "People":
-                active_class = "active-people"
+                label = row.get("wildlife_label", "Other")
             else:
-                active_class = "active-vehicle"
-        
-        # Card HTML
-        time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
-        temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
-        
-        card_html = f"""
-        <div class="sighting-card {active_class}" onclick="selectCard{idx}()">
-            <div class="card-thumbnail">
-                <div class="card-thumbnail-placeholder">📷</div>
-            </div>
-            <div class="card-title">{label} • {cam}</div>
-            <div class="card-meta">{time_str}</div>
-            <div class="card-temp">{temp_str}</div>
-        </div>
-        """
-        
-        st.markdown(card_html, unsafe_allow_html=True)
-        
-        # Click handler via button (hidden)
-        if st.button(f"Select", key=f"card_{event_id}", type="secondary", disabled=False, use_container_width=False):
-            st.session_state.selected_event = event_id
-            st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+                label = (row.get("event_type", "")).capitalize()
+            
+            # Determine active state
+            active_class = ""
+            if "selected_event" in st.session_state and st.session_state.selected_event == event_id:
+                if section == "Wildlife":
+                    active_class = "active"
+                elif section == "People":
+                    active_class = "active-people"
+                else:
+                    active_class = "active-vehicle"
+            
+            time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
+            temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
+            
+            with cols[col_idx]:
+                # Card container
+                st.markdown(f'<div class="sighting-card {active_class}">', unsafe_allow_html=True)
+                
+                # Try to load thumbnail
+                url, fid = resolve_image_link(cam, fn, image_index)
+                
+                if fid:
+                    img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
+                    if img_bytes:
+                        st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
+                        st.image(img_bytes, use_container_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                
+                # Card content
+                st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Click handler
+                if st.button("Select", key=f"card_{event_id}", use_container_width=True):
+                    st.session_state.selected_event = event_id
+                    st.rerun()
     
     # Load More button
     if len(view) > st.session_state.gallery_limit:
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
         if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key="load_more"):
-            st.session_state.gallery_limit += 12
+            st.session_state.gallery_limit += 8
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
     
