@@ -10,6 +10,8 @@ st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 inject_css()
 
 # Initialize session state
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "dashboard"
 if "gallery_limit" not in st.session_state:
     st.session_state.gallery_limit = 8
 
@@ -50,10 +52,6 @@ if not image_index:
 # ---------------------------
 # VIEW SELECTOR (instead of tabs)
 # ---------------------------
-
-# Initialize view state
-if "current_view" not in st.session_state:
-    st.session_state.current_view = "dashboard"
 
 # View selector at top
 col1, col2, col3 = st.columns([1, 1, 8])
