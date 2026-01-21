@@ -106,7 +106,6 @@ def inject_css():
             border: 1.5px solid rgba(255,255,255,0.1);
             border-radius: 10px;
             padding: 0;
-            cursor: pointer;
             transition: all 0.2s ease;
             position: relative;
             overflow: hidden;
@@ -117,22 +116,6 @@ def inject_css():
             border-color: rgba(255,255,255,0.25);
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-          }
-          
-          .sighting-card.active {
-            border-color: #4CAF50;
-            border-width: 2px;
-            background: rgba(76,175,80,0.08);
-          }
-          
-          .sighting-card.active-people {
-            border-color: #2196F3;
-            background: rgba(33,150,243,0.08);
-          }
-          
-          .sighting-card.active-vehicle {
-            border-color: #FF9800;
-            background: rgba(255,152,0,0.08);
           }
           
           .card-thumbnail {
@@ -587,7 +570,7 @@ def render_listing_and_viewer(
     download_bytes_func,
 ):
     """
-    Card gallery + photo detail viewer (separate from data visualizations)
+    Photo gallery - no selection, just browsing
     """
     
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
@@ -616,7 +599,7 @@ def render_listing_and_viewer(
     
     display_view = view.head(st.session_state.gallery_limit)
     
-    # Card Gallery - use columns for proper layout
+    # Photo Gallery - simple display, no selection
     cols_per_row = 2
     rows = (len(display_view) + cols_per_row - 1) // cols_per_row
     
@@ -640,16 +623,6 @@ def render_listing_and_viewer(
             else:
                 label = (row.get("event_type", "")).capitalize()
             
-            # Determine active state
-            active_class = ""
-            if "selected_event" in st.session_state and st.session_state.selected_event == event_id:
-                if section == "Wildlife":
-                    active_class = "active"
-                elif section == "People":
-                    active_class = "active-people"
-                else:
-                    active_class = "active-vehicle"
-            
             time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
             temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
             
@@ -657,42 +630,33 @@ def render_listing_and_viewer(
                 # Try to load thumbnail
                 url, fid = resolve_image_link(cam, fn, image_index)
                 
-                # Create clickable card using button
-                if st.button(
-                    label="view",
-                    key=f"card_{event_id}",
-                    use_container_width=True,
-                    type="secondary",
-                    disabled=False,
-                ):
-                    st.session_state.selected_event = event_id
-                    st.rerun()
+                # Card container (no selection)
+                st.markdown('<div class="sighting-card">', unsafe_allow_html=True)
                 
-                # Card container (visual only, displayed above button)
-                card_container = st.container()
-                with card_container:
-                    st.markdown(f'<div class="sighting-card {active_class}">', unsafe_allow_html=True)
-                    
-                    # Thumbnail
-                    if fid:
-                        img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
-                        if img_bytes:
-                            st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
-                            st.image(img_bytes, use_container_width=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
-                        else:
-                            st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                # Thumbnail
+                if fid:
+                    img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
+                    if img_bytes:
+                        st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
+                        st.image(img_bytes, use_container_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
-                    
-                    # Card content
-                    st.markdown('<div class="card-content">', unsafe_allow_html=True)
-                    st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                
+                # Card content
+                st.markdown('<div class="card-content">', unsafe_allow_html=True)
+                st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
+                
+                # Add Drive link
+                if url:
+                    st.markdown(f'<a href="{url}" target="_blank" style="font-size: 0.8rem; opacity: 0.7;">View in Drive</a>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
     
     # Load More button
     if len(view) > st.session_state.gallery_limit:
@@ -702,106 +666,10 @@ def render_listing_and_viewer(
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Photo Detail Viewer
-    if "selected_event" in st.session_state:
-        selected_row = view[view["event_id"] == st.session_state.selected_event]
-        
-        if not selected_row.empty:
-            row = selected_row.iloc[0]
-            cam = str(row.get("camera", "")).strip()
-            fn = str(row.get("filename", "")).strip()
-            url, fid = resolve_image_link(cam, fn, image_index)
-            
-            st.markdown('<div class="photo-viewer-container">', unsafe_allow_html=True)
-            
-            # Photo
-            if fid:
-                photo_placeholder = st.empty()
-                photo_placeholder.markdown('<div class="photo-loading"></div>', unsafe_allow_html=True)
-                
-                try:
-                    service = drive_client_factory()
-                    img_bytes = download_bytes_func(service, fid)
-                    
-                    photo_placeholder.markdown('<div class="photo-main">', unsafe_allow_html=True)
-                    st.image(img_bytes, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                except Exception as e:
-                    photo_placeholder.error(f"Could not load photo: {e}")
-            else:
-                st.warning("Photo not found in Google Drive")
-            
-            # Metadata Grid
-            st.markdown('<div class="metadata-grid">', unsafe_allow_html=True)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"""
-                <div class="metadata-item">
-                    <div class="metadata-label">Camera</div>
-                    <div class="metadata-value">{cam or '—'}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if section == "Wildlife":
-                    animal = row.get('wildlife_label', 'Other')
-                    st.markdown(f"""
-                    <div class="metadata-item">
-                        <div class="metadata-label">Animal</div>
-                        <div class="metadata-value">{animal}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    event_type = (row.get('event_type', '')).capitalize()
-                    st.markdown(f"""
-                    <div class="metadata-item">
-                        <div class="metadata-label">Type</div>
-                        <div class="metadata-value">{event_type}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col2:
-                dt = row.get('datetime')
-                dt_str = dt.strftime("%b %d, %Y %I:%M %p") if pd.notna(dt) else "Unknown"
-                st.markdown(f"""
-                <div class="metadata-item">
-                    <div class="metadata-label">Date & Time</div>
-                    <div class="metadata-value">{dt_str}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if pd.notna(row.get("temp_f")):
-                    temp = int(round(float(row.get('temp_f'))))
-                    st.markdown(f"""
-                    <div class="metadata-item">
-                        <div class="metadata-label">Temperature</div>
-                        <div class="metadata-value">{temp}°F</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Insights
-            insights = _calculate_insights(row, base, section)
-            if insights:
-                insight_class = "insights-box"
-                if section == "People":
-                    insight_class += " people"
-                elif section == "Vehicles":
-                    insight_class += " vehicle"
-                
-                st.markdown(f'<div class="{insight_class}">', unsafe_allow_html=True)
-                st.markdown('<div class="insights-title">Quick Insights</div>', unsafe_allow_html=True)
-                for insight in insights:
-                    st.markdown(f'<div class="insight-item">• {insight}</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Actions
-            if url:
-                st.link_button("Open in Google Drive", url, use_container_width=True)
-            
-            # File info
-            st.markdown(f'<div class="file-info">File: {fn}</div>', unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+    # Load More button
+    if len(view) > st.session_state.gallery_limit:
+        st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
+        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key="load_more"):
+            st.session_state.gallery_limit += 8
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
