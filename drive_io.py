@@ -7,6 +7,8 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
+CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
+
 
 def drive_view_url(file_id: str) -> str:
     return f"https://drive.google.com/file/d/{file_id}/view"
@@ -32,14 +34,13 @@ def _download_drive_file_bytes(service, file_id: str) -> bytes:
     return fh.read()
 
 
-@st.cache_data(ttl=lambda: int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60)))
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
 def load_events_from_drive(file_id: str):
     service = _drive_client()
     meta = service.files().get(fileId=file_id, fields="name,modifiedTime,size").execute()
     raw = _download_drive_file_bytes(service, file_id)
 
     import pandas as pd
-
     df = pd.read_csv(io.BytesIO(raw))
     df.attrs["drive_name"] = meta.get("name", "events.csv")
     df.attrs["drive_modified"] = meta.get("modifiedTime", "")
@@ -47,7 +48,7 @@ def load_events_from_drive(file_id: str):
     return df
 
 
-@st.cache_data(ttl=lambda: int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60)))
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
 def list_camera_folders(root_folder_id: str) -> Dict[str, str]:
     service = _drive_client()
     q = f"'{root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -62,11 +63,8 @@ def list_camera_folders(root_folder_id: str) -> Dict[str, str]:
     return out
 
 
-@st.cache_data(ttl=lambda: int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60)))
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
 def index_images_by_camera(root_folder_id: str) -> Dict[str, Dict[str, Dict[str, str]]]:
-    """
-    image_index[camera][filename] = {"id": file_id, "webViewLink": link}
-    """
     service = _drive_client()
     cam_folders = list_camera_folders(root_folder_id)
 
