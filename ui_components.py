@@ -584,7 +584,9 @@ def render_listing_and_viewer(
         view = view[view["wildlife_label"] != "Other"]
 
     # Search
-    q = st.text_input("Search by animal, camera, or filename", value="", key="search_input")
+    search_container = st.container()
+    with search_container:
+        q = st.text_input("Search by animal, camera, or filename", value="", key=f"search_input_{section}", on_change=None)
     if q.strip():
         ql = q.strip().lower()
         mask = (
