@@ -15,67 +15,220 @@ def inject_css():
     st.markdown(
         """
         <style>
-          .block-container { padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1180px; }
-          h1, h2, h3 { letter-spacing: -0.02em; }
-          .small-muted { opacity: 0.75; font-size: 0.92rem; }
-          .card {
-            padding: 1rem 1.1rem;
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,0.10);
-            background: rgba(255,255,255,0.03);
+          /* Base Layout */
+          .block-container { 
+            padding-top: 1rem; 
+            padding-bottom: 2.5rem; 
+            max-width: 1400px; 
           }
-          div[data-testid="stMetricValue"] { font-size: 1.6rem; }
-          div[data-testid="stMetricLabel"] { font-size: 0.95rem; opacity: 0.75; }
-          .stDataFrame { border-radius: 14px; overflow: hidden; }
-          .stAlert { border-radius: 14px; }
-          section[data-testid="stSidebar"] { padding-top: 1rem; }
-          button[kind="secondary"], button[kind="primary"] { border-radius: 10px; }
           
-          /* Enhanced Photo Viewer Styles */
-          .photo-viewer {
-            border-radius: 16px;
+          /* Typography */
+          h1, h2, h3 { 
+            letter-spacing: -0.02em; 
+            font-weight: 600;
+          }
+          h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+          h2 { font-size: 1.75rem; margin-bottom: 1rem; }
+          h3 { font-size: 1.35rem; margin-bottom: 0.75rem; }
+          
+          .small-muted { 
+            opacity: 0.6; 
+            font-size: 0.9rem; 
+          }
+          
+          /* Metrics Cards */
+          div[data-testid="stMetricValue"] { 
+            font-size: 2rem; 
+            font-weight: 600;
+          }
+          div[data-testid="stMetricLabel"] { 
+            font-size: 0.9rem; 
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+          }
+          
+          /* Sidebar */
+          section[data-testid="stSidebar"] { 
+            padding-top: 1rem;
+            background: rgba(0,0,0,0.02);
+          }
+          section[data-testid="stSidebar"] > div {
+            padding-top: 2rem;
+          }
+          
+          /* Buttons */
+          button[kind="secondary"], 
+          button[kind="primary"] { 
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+          }
+          
+          /* Alert Boxes */
+          .stAlert { 
+            border-radius: 10px;
+            border-left: 4px solid;
+          }
+          
+          /* Data Frames */
+          .stDataFrame { 
+            border-radius: 10px; 
             overflow: hidden;
-            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
-            border: 1px solid rgba(255,255,255,0.12);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
           }
           
-          .photo-container {
-            position: relative;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 1rem;
-          }
+          /* ============================================
+             SIGHTING CARD GALLERY
+             ============================================ */
           
-          .photo-container img {
-            width: 100%;
-            height: auto;
-            display: block;
-            image-rendering: -webkit-optimize-contrast;
-          }
-          
-          .photo-metadata {
+          .card-gallery {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-            padding: 1rem;
-            background: rgba(255,255,255,0.03);
-            border-radius: 10px;
+            gap: 1rem;
             margin-top: 1rem;
           }
           
-          .metadata-item {
+          .sighting-card {
+            background: rgba(255,255,255,0.03);
+            border: 1.5px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+          }
+          
+          .sighting-card:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+          }
+          
+          .sighting-card.active {
+            border-color: #4CAF50;
+            border-width: 2px;
+            background: rgba(76,175,80,0.08);
+          }
+          
+          .sighting-card.active-people {
+            border-color: #2196F3;
+            background: rgba(33,150,243,0.08);
+          }
+          
+          .sighting-card.active-vehicle {
+            border-color: #FF9800;
+            background: rgba(255,152,0,0.08);
+          }
+          
+          .card-thumbnail {
+            width: 100%;
+            height: 120px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
             display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+          }
+          
+          .card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+          
+          .card-thumbnail-placeholder {
+            font-size: 2.5rem;
+            opacity: 0.3;
+          }
+          
+          .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            line-height: 1.3;
+          }
+          
+          .card-meta {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin-bottom: 0.25rem;
+          }
+          
+          .card-temp {
+            font-size: 0.85rem;
+            opacity: 0.6;
+          }
+          
+          /* ============================================
+             PHOTO DETAIL VIEWER
+             ============================================ */
+          
+          .photo-viewer-container {
+            background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+          }
+          
+          .photo-main {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+          }
+          
+          .photo-main img {
+            width: 100%;
+            height: auto;
+            display: block;
+          }
+          
+          .photo-loading {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+            border-radius: 8px;
+          }
+          
+          @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+          
+          .metadata-section {
+            margin-bottom: 1.5rem;
+          }
+          
+          .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+          }
+          
+          .metadata-item {
+            background: rgba(255,255,255,0.02);
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.06);
           }
           
           .metadata-label {
-            font-size: 0.8rem;
-            opacity: 0.6;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            opacity: 0.5;
+            margin-bottom: 0.35rem;
             font-weight: 600;
           }
           
@@ -84,51 +237,55 @@ def inject_css():
             font-weight: 500;
           }
           
-          .photo-title {
-            font-size: 1.25rem;
+          .insights-box {
+            background: rgba(76,175,80,0.08);
+            border: 1px solid rgba(76,175,80,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+          }
+          
+          .insights-box.people {
+            background: rgba(33,150,243,0.08);
+            border-color: rgba(33,150,243,0.2);
+          }
+          
+          .insights-box.vehicle {
+            background: rgba(255,152,0,0.08);
+            border-color: rgba(255,152,0,0.2);
+          }
+          
+          .insights-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
             font-weight: 600;
-            margin-bottom: 1rem;
-            padding-bottom: 0.75rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
           }
           
-          .loading-skeleton {
-            width: 100%;
-            height: 400px;
-            background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
-            background-size: 200% 100%;
-            animation: loading 1.5s ease-in-out infinite;
-            border-radius: 12px;
+          .insight-item {
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+            opacity: 0.85;
           }
           
-          @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+          .file-info {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.08);
           }
           
-          .thumbnail-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 0.5rem;
+          .load-more-btn {
+            text-align: center;
             margin-top: 1rem;
           }
           
-          .thumbnail {
-            aspect-ratio: 1;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            border: 2px solid transparent;
-            transition: all 0.2s ease;
-          }
-          
-          .thumbnail:hover {
-            border-color: rgba(255,255,255,0.3);
-            transform: scale(1.05);
-          }
-          
-          .thumbnail.active {
-            border-color: #4CAF50;
+          /* Chart styling */
+          .vega-embed { 
+            padding: 0 !important; 
           }
         </style>
         """,
@@ -138,11 +295,11 @@ def inject_css():
 
 def render_timeline(base: pd.DataFrame, section: str):
     st.subheader("Timeline")
-    st.caption("Each dot is one sighting.")
+    st.caption("Each dot represents one sighting")
 
     chart_df = base.dropna(subset=["datetime", "temp_f"]).copy()
     if chart_df.empty:
-        st.info("No temperature data available for charting.")
+        st.info("No temperature data available for timeline visualization")
         return
 
     if section == "Wildlife":
@@ -153,42 +310,47 @@ def render_timeline(base: pd.DataFrame, section: str):
             other="Other",
         )
 
-        color_enc = alt.Color("wildlife_group_chart:N", title="Animal")
+        color_enc = alt.Color(
+            "wildlife_group_chart:N", 
+            title="Animal",
+            scale=alt.Scale(scheme='category20')
+        )
         tooltip = [
             alt.Tooltip("datetime:T", title="Time"),
-            alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
+            alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
             alt.Tooltip("wildlife_label:N", title="Animal"),
             alt.Tooltip("camera:N", title="Camera"),
-            alt.Tooltip("filename:N", title="File"),
         ]
     else:
         chart_df["type_label"] = section.lower()
-        color_enc = alt.Color("type_label:N", legend=None)
+        color_map = {"wildlife": "#4CAF50", "people": "#2196F3", "vehicle": "#FF9800"}
+        color = color_map.get(section.lower(), "#4CAF50")
+        color_enc = alt.Color("type_label:N", legend=None, scale=alt.Scale(range=[color]))
         tooltip = [
             alt.Tooltip("datetime:T", title="Time"),
-            alt.Tooltip("temp_f:Q", title="Temp (°F)", format=".0f"),
+            alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
             alt.Tooltip("camera:N", title="Camera"),
-            alt.Tooltip("filename:N", title="File"),
         ]
 
     y_lo, y_hi = clamp_temp_domain(chart_df["temp_f"].min(), chart_df["temp_f"].max())
 
     scatter = (
         alt.Chart(chart_df)
-        .mark_circle(size=240, opacity=0.86)
+        .mark_circle(size=200, opacity=0.7)
         .encode(
-            x=alt.X("datetime:T", title="Time"),
+            x=alt.X("datetime:T", title="Date & Time"),
             y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[y_lo, y_hi])),
             color=color_enc,
             tooltip=tooltip,
         )
+        .properties(height=300)
         .interactive()
     )
-    st.altair_chart(scatter, width="stretch")
+    st.altair_chart(scatter, use_container_width=True)
 
 
 def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_style: str, time_gran: str):
-    st.subheader("Patterns")
+    st.subheader("Activity Patterns")
 
     patt = base.dropna(subset=["datetime"]).copy()
     patt["weekday"] = patt["datetime"].dt.day_name()
@@ -205,18 +367,22 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         patt["time_label"] = patt["hour"].astype(int).astype(str) + ":00"
 
     if section != "Wildlife":
+        color_map = {"People": "#2196F3", "Vehicles": "#FF9800"}
+        chart_color = color_map.get(section, "#4CAF50")
+        
         by_time = patt.groupby("time_label").size().reset_index(name="Sightings")
         by_time["__h"] = by_time["time_label"].str.split(":").str[0].astype(int)
         by_time = by_time.sort_values("__h")
 
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar()
+            .mark_bar(color=chart_color, opacity=0.8)
             .encode(
                 x=alt.X("time_label:N", title="Time of Day", sort=by_time["time_label"].tolist(), axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Sightings"),
-                tooltip=[alt.Tooltip("time_label:N", title="Time"), alt.Tooltip("Sightings:Q", title="Sightings")],
+                y=alt.Y("Sightings:Q", title="Count"),
+                tooltip=[alt.Tooltip("time_label:N", title="Time"), alt.Tooltip("Sightings:Q", title="Count")],
             )
+            .properties(height=250)
         )
 
         by_day = patt.groupby("weekday").size().reindex(weekday_order, fill_value=0).reset_index(name="Sightings")
@@ -224,23 +390,25 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
 
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar()
+            .mark_bar(color=chart_color, opacity=0.8)
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-                x=alt.X("Sightings:Q", title="Sightings"),
-                tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("Sightings:Q", title="Sightings")],
+                x=alt.X("Sightings:Q", title="Count"),
+                tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("Sightings:Q", title="Count")],
             )
+            .properties(height=250)
         )
 
         cA, cB = st.columns(2)
         with cA:
-            st.markdown("**Time of day**")
-            st.altair_chart(time_chart, width="stretch")
+            st.markdown("**By Time of Day**")
+            st.altair_chart(time_chart, use_container_width=True)
         with cB:
-            st.markdown("**Day of week**")
-            st.altair_chart(day_chart, width="stretch")
+            st.markdown("**By Day of Week**")
+            st.altair_chart(day_chart, use_container_width=True)
         return
 
+    # Wildlife
     if not include_other:
         patt = patt[patt["wildlife_label"] != "Other"]
 
@@ -264,15 +432,16 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             .mark_bar()
             .encode(
                 x=alt.X("time_label:N", title="Time of Day", sort=time_order, axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Sightings"),
-                color=alt.Color("animal_group:N", title="Animal"),
+                y=alt.Y("Sightings:Q", title="Count"),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
                 xOffset="animal_group:N",
                 tooltip=[
                     alt.Tooltip("time_label:N", title="Time"),
                     alt.Tooltip("animal_group:N", title="Animal"),
-                    alt.Tooltip("Sightings:Q", title="Sightings"),
+                    alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
+            .properties(height=250)
         )
     else:
         time_chart = (
@@ -280,14 +449,15 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             .mark_bar()
             .encode(
                 x=alt.X("time_label:N", title="Time of Day", sort=time_order, axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Sightings"),
-                color=alt.Color("animal_group:N", title="Animal"),
+                y=alt.Y("Sightings:Q", title="Count"),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
                 tooltip=[
                     alt.Tooltip("time_label:N", title="Time"),
                     alt.Tooltip("animal_group:N", title="Animal"),
-                    alt.Tooltip("Sightings:Q", title="Sightings"),
+                    alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
+            .properties(height=250)
         )
 
     by_day = patt.groupby(["weekday", "animal_group"]).size().reset_index(name="Sightings")
@@ -300,15 +470,16 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             .mark_bar()
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-                x=alt.X("Sightings:Q", title="Sightings"),
-                color=alt.Color("animal_group:N", title="Animal"),
+                x=alt.X("Sightings:Q", title="Count"),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
                 yOffset="animal_group:N",
                 tooltip=[
                     alt.Tooltip("weekday:N", title="Day"),
                     alt.Tooltip("animal_group:N", title="Animal"),
-                    alt.Tooltip("Sightings:Q", title="Sightings"),
+                    alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
+            .properties(height=250)
         )
     else:
         day_chart = (
@@ -316,113 +487,78 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             .mark_bar()
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-                x=alt.X("Sightings:Q", title="Sightings"),
-                color=alt.Color("animal_group:N", title="Animal"),
+                x=alt.X("Sightings:Q", title="Count"),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
                 tooltip=[
                     alt.Tooltip("weekday:N", title="Day"),
                     alt.Tooltip("animal_group:N", title="Animal"),
-                    alt.Tooltip("Sightings:Q", title="Sightings"),
+                    alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
+            .properties(height=250)
         )
 
     cA, cB = st.columns(2)
     with cA:
-        st.markdown("**Time of day**")
-        st.altair_chart(time_chart, width="stretch")
+        st.markdown("**By Time of Day**")
+        st.altair_chart(time_chart, use_container_width=True)
     with cB:
-        st.markdown("**Day of week**")
-        st.altair_chart(day_chart, width="stretch")
+        st.markdown("**By Day of Week**")
+        st.altair_chart(day_chart, use_container_width=True)
 
 
-def _render_photo_viewer(row, cam, fn, url, fid, section, drive_client_factory, download_bytes_func):
-    """Render the enhanced photo viewer."""
+def _calculate_insights(row, base: pd.DataFrame, section: str):
+    """Generate contextual insights for selected sighting."""
+    insights = []
     
-    st.markdown('<div class="photo-viewer">', unsafe_allow_html=True)
+    cam = row.get("camera", "").strip()
+    dt = row.get("datetime")
     
-    # Title
-    st.markdown(f'<div class="photo-title">{row.get("friendly_name", "")}</div>', unsafe_allow_html=True)
+    if pd.isna(dt):
+        return insights
     
-    # Photo container with loading state
-    photo_placeholder = st.empty()
+    # Same camera, same day
+    same_day = base[
+        (base["camera"] == cam) & 
+        (base["datetime"].dt.date == dt.date())
+    ]
     
-    if fid:
-        try:
-            # Show loading skeleton
-            photo_placeholder.markdown('<div class="loading-skeleton"></div>', unsafe_allow_html=True)
-            
-            # Load image
-            service = drive_client_factory()
-            img_bytes = download_bytes_func(service, fid)
-            
-            # Display image in container
-            photo_placeholder.markdown('<div class="photo-container">', unsafe_allow_html=True)
-            st.image(img_bytes, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-        except Exception as e:
-            photo_placeholder.error(f"Could not load photo: {e}")
-    else:
-        photo_placeholder.warning("Photo not found in Drive")
-    
-    # Metadata grid
-    st.markdown('<div class="photo-metadata">', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metadata-item">
-            <div class="metadata-label">Camera</div>
-            <div class="metadata-value">{cam or '—'}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+    if len(same_day) > 1:
         if section == "Wildlife":
-            animal = row.get('wildlife_label') or 'Other'
-            st.markdown(f"""
-            <div class="metadata-item">
-                <div class="metadata-label">Animal</div>
-                <div class="metadata-value">{animal}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            animal = row.get("wildlife_label", "")
+            same_animal_count = len(same_day[same_day["wildlife_label"] == animal])
+            if same_animal_count > 1:
+                insights.append(f"{same_animal_count} {animal} sightings at {cam} today")
+            else:
+                insights.append(f"{len(same_day)} total sightings at {cam} today")
         else:
-            event_type = (row.get('event_type') or '').capitalize()
-            st.markdown(f"""
-            <div class="metadata-item">
-                <div class="metadata-label">Type</div>
-                <div class="metadata-value">{event_type}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            insights.append(f"{len(same_day)} sightings at {cam} today")
     
-    with col2:
-        dt_str = str(row.get('datetime'))
-        st.markdown(f"""
-        <div class="metadata-item">
-            <div class="metadata-label">Date & Time</div>
-            <div class="metadata-value">{dt_str}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if pd.notna(row.get("temp_f")):
-            temp = int(round(float(row.get('temp_f'))))
-            st.markdown(f"""
-            <div class="metadata-item">
-                <div class="metadata-label">Temperature</div>
-                <div class="metadata-value">{temp} °F</div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Temperature context
+    temp = row.get("temp_f")
+    if pd.notna(temp):
+        yesterday = dt - pd.Timedelta(days=1)
+        yesterday_data = base[
+            (base["datetime"] >= yesterday) & 
+            (base["datetime"] < dt - pd.Timedelta(hours=12))
+        ]
+        if not yesterday_data.empty and yesterday_data["temp_f"].notna().any():
+            avg_yesterday = yesterday_data["temp_f"].mean()
+            diff = temp - avg_yesterday
+            if abs(diff) > 5:
+                direction = "warmer" if diff > 0 else "cooler"
+                insights.append(f"{abs(int(diff))}°F {direction} than previous day")
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Peak activity time
+    if section == "Wildlife":
+        animal = row.get("wildlife_label", "")
+        animal_data = base[base["wildlife_label"] == animal]
+        if len(animal_data) > 5:
+            hour_counts = animal_data["datetime"].dt.hour.value_counts()
+            peak_hour = hour_counts.idxmax()
+            insights.append(f"Peak activity: {peak_hour}:00-{peak_hour+1}:00")
     
-    # Action buttons
-    st.markdown("")
-    if url:
-        st.link_button("🔗 Open in Google Drive", url, use_container_width=True)
-    
-    st.markdown(f'<div style="font-size: 0.85rem; opacity: 0.6; margin-top: 0.75rem;">File: {fn}</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    return insights
 
 
 def render_listing_and_viewer(
@@ -434,17 +570,16 @@ def render_listing_and_viewer(
     download_bytes_func,
 ):
     """
-    Enhanced table listing with beautiful photo viewer.
+    Card gallery + photo detail viewer (separate from data visualizations)
     """
-    st.subheader("Browse Sightings")
-
+    
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
     if section == "Wildlife" and not include_other:
         view = view[view["wildlife_label"] != "Other"]
 
     # Search
-    q = st.text_input("🔍 Search (animal, camera, filename)", value="", key="search_input")
+    q = st.text_input("Search by animal, camera, or filename", value="", key="search_input")
     if q.strip():
         ql = q.strip().lower()
         mask = (
@@ -455,61 +590,172 @@ def render_listing_and_viewer(
         view = view[mask]
 
     if view.empty:
-        st.info("No sightings to show.")
+        st.info("No sightings match your search")
         return
 
-    # Listing table
-    show = view.copy()
-    if section == "Wildlife":
-        label_col = "wildlife_label"
-    else:
-        label_col = "event_type"
-
-    listing = show[[
-        "event_id",
-        "datetime",
-        "camera",
-        label_col,
-        "temp_f",
-        "filename",
-        "friendly_name",
-    ]].copy()
-
-    listing.rename(columns={label_col: "label"}, inplace=True)
-    listing["Select"] = False
-
-    # Rows control
-    limit = st.slider("📊 Rows to display", min_value=50, max_value=500, value=150, step=50, key="row_limit")
-    listing = listing.head(limit)
-
-    edited = st.data_editor(
-        listing[["Select", "friendly_name", "datetime", "camera", "label", "temp_f", "filename"]],
-        hide_index=True,
-        use_container_width=True,
-        disabled=["friendly_name", "datetime", "camera", "label", "temp_f", "filename"],
-        column_config={
-            "Select": st.column_config.CheckboxColumn("📌", width="small"),
-            "friendly_name": st.column_config.TextColumn("Sighting", width="large"),
-            "datetime": st.column_config.DatetimeColumn("Date & Time", format="MMM DD, YYYY h:mm a"),
-            "temp_f": st.column_config.NumberColumn("Temp (°F)", format="%.0f"),
-            "label": st.column_config.TextColumn("Animal/Type"),
-        },
-        key=f"listing_{section}",
-    )
-
-    chosen = edited[edited["Select"] == True]
-    if chosen.empty:
-        st.caption("👆 Select a row above to view the photo")
-        return
-
-    chosen_name = chosen.iloc[0]["friendly_name"]
-    row = show[show["friendly_name"] == chosen_name].iloc[0]
-
-    cam = str(row.get("camera", "")).strip()
-    fn = str(row.get("filename", "")).strip()
-    url, fid = resolve_image_link(cam, fn, image_index)
-
-    st.markdown("---")
-    st.subheader("📸 Photo Viewer")
-
-    _render_photo_viewer(row, cam, fn, url, fid, section, drive_client_factory, download_bytes_func)
+    # Pagination
+    if "gallery_limit" not in st.session_state:
+        st.session_state.gallery_limit = 12
+    
+    display_view = view.head(st.session_state.gallery_limit)
+    
+    # Card Gallery
+    st.markdown('<div class="card-gallery">', unsafe_allow_html=True)
+    
+    for idx, row in display_view.iterrows():
+        event_id = row.get("event_id", "")
+        cam = str(row.get("camera", "")).strip()
+        fn = str(row.get("filename", "")).strip()
+        dt = row.get("datetime")
+        temp = row.get("temp_f")
+        
+        if section == "Wildlife":
+            label = row.get("wildlife_label", "Other")
+        else:
+            label = (row.get("event_type", "")).capitalize()
+        
+        # Determine active state
+        active_class = ""
+        if "selected_event" in st.session_state and st.session_state.selected_event == event_id:
+            if section == "Wildlife":
+                active_class = "active"
+            elif section == "People":
+                active_class = "active-people"
+            else:
+                active_class = "active-vehicle"
+        
+        # Card HTML
+        time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
+        temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
+        
+        card_html = f"""
+        <div class="sighting-card {active_class}" onclick="selectCard{idx}()">
+            <div class="card-thumbnail">
+                <div class="card-thumbnail-placeholder">📷</div>
+            </div>
+            <div class="card-title">{label} • {cam}</div>
+            <div class="card-meta">{time_str}</div>
+            <div class="card-temp">{temp_str}</div>
+        </div>
+        """
+        
+        st.markdown(card_html, unsafe_allow_html=True)
+        
+        # Click handler via button (hidden)
+        if st.button(f"Select", key=f"card_{event_id}", type="secondary", disabled=False, use_container_width=False):
+            st.session_state.selected_event = event_id
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Load More button
+    if len(view) > st.session_state.gallery_limit:
+        st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
+        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key="load_more"):
+            st.session_state.gallery_limit += 12
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Photo Detail Viewer
+    if "selected_event" in st.session_state:
+        selected_row = view[view["event_id"] == st.session_state.selected_event]
+        
+        if not selected_row.empty:
+            row = selected_row.iloc[0]
+            cam = str(row.get("camera", "")).strip()
+            fn = str(row.get("filename", "")).strip()
+            url, fid = resolve_image_link(cam, fn, image_index)
+            
+            st.markdown('<div class="photo-viewer-container">', unsafe_allow_html=True)
+            
+            # Photo
+            if fid:
+                photo_placeholder = st.empty()
+                photo_placeholder.markdown('<div class="photo-loading"></div>', unsafe_allow_html=True)
+                
+                try:
+                    service = drive_client_factory()
+                    img_bytes = download_bytes_func(service, fid)
+                    
+                    photo_placeholder.markdown('<div class="photo-main">', unsafe_allow_html=True)
+                    st.image(img_bytes, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                except Exception as e:
+                    photo_placeholder.error(f"Could not load photo: {e}")
+            else:
+                st.warning("Photo not found in Google Drive")
+            
+            # Metadata Grid
+            st.markdown('<div class="metadata-grid">', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metadata-item">
+                    <div class="metadata-label">Camera</div>
+                    <div class="metadata-value">{cam or '—'}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if section == "Wildlife":
+                    animal = row.get('wildlife_label', 'Other')
+                    st.markdown(f"""
+                    <div class="metadata-item">
+                        <div class="metadata-label">Animal</div>
+                        <div class="metadata-value">{animal}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    event_type = (row.get('event_type', '')).capitalize()
+                    st.markdown(f"""
+                    <div class="metadata-item">
+                        <div class="metadata-label">Type</div>
+                        <div class="metadata-value">{event_type}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col2:
+                dt = row.get('datetime')
+                dt_str = dt.strftime("%b %d, %Y %I:%M %p") if pd.notna(dt) else "Unknown"
+                st.markdown(f"""
+                <div class="metadata-item">
+                    <div class="metadata-label">Date & Time</div>
+                    <div class="metadata-value">{dt_str}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if pd.notna(row.get("temp_f")):
+                    temp = int(round(float(row.get('temp_f'))))
+                    st.markdown(f"""
+                    <div class="metadata-item">
+                        <div class="metadata-label">Temperature</div>
+                        <div class="metadata-value">{temp}°F</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Insights
+            insights = _calculate_insights(row, base, section)
+            if insights:
+                insight_class = "insights-box"
+                if section == "People":
+                    insight_class += " people"
+                elif section == "Vehicles":
+                    insight_class += " vehicle"
+                
+                st.markdown(f'<div class="{insight_class}">', unsafe_allow_html=True)
+                st.markdown('<div class="insights-title">Quick Insights</div>', unsafe_allow_html=True)
+                for insight in insights:
+                    st.markdown(f'<div class="insight-item">• {insight}</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Actions
+            if url:
+                st.link_button("Open in Google Drive", url, use_container_width=True)
+            
+            # File info
+            st.markdown(f'<div class="file-info">File: {fn}</div>', unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
