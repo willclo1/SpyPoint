@@ -431,6 +431,94 @@ def inject_css():
           .vega-embed {{
             padding: 0 !important;
           }}
+                /* =========================================================
+   FINAL RED ELIMINATION — FILTER WIDGETS
+           ========================================================= */
+        
+        /* ---- RADIO BUTTONS (Category, Chart Style) ---- */
+        
+        /* Outer radio circle */
+        div[data-testid="stRadio"] input[type="radio"] {
+          accent-color: var(--accent) !important;
+        }
+        
+        /* BaseWeb radio fallback (Streamlit internal) */
+        div[data-testid="stRadio"] [role="radio"] > div {
+          border-color: rgba(255,255,255,0.35) !important;
+        }
+        div[data-testid="stRadio"] [role="radio"][aria-checked="true"] > div {
+          border-color: var(--accent) !important;
+          background: var(--accent) !important;
+        }
+        
+        
+        /* ---- SLIDER (Temperature) ---- */
+        
+        /* Slider thumb */
+        div[data-testid="stSlider"] [role="slider"] {
+          color: var(--accent) !important;
+        }
+        
+        /* Slider track (background) */
+        div[data-testid="stSlider"] [data-baseweb="slider"] > div > div {
+          background: rgba(255,255,255,0.15) !important;
+        }
+        
+        /* Slider filled range */
+        div[data-testid="stSlider"] [data-baseweb="slider"] > div > div > div {
+          background: linear-gradient(
+            90deg,
+            rgba(91,143,249,0.95),
+            rgba(91,143,249,0.75)
+          ) !important;
+        }
+        
+        
+        /* ---- MULTISELECT (Cameras) ---- */
+        
+        /* Selected value pills */
+        div[data-testid="stMultiSelect"] [data-baseweb="tag"] {
+          background: rgba(91,143,249,0.18) !important;
+          border: 1px solid rgba(91,143,249,0.35) !important;
+          color: var(--text) !important;
+        }
+        
+        /* Remove red "x" */
+        div[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {
+          fill: var(--muted) !important;
+        }
+        div[data-testid="stMultiSelect"] [data-baseweb="tag"] svg:hover {
+          fill: var(--text) !important;
+        }
+        
+        
+        /* ---- DROPDOWN CARETS / ICONS ---- */
+        div[data-testid="stSelectbox"] svg,
+        div[data-testid="stMultiSelect"] svg {
+          fill: var(--muted) !important;
+        }
+        
+        
+        /* ---- DATE INPUT ---- */
+        div[data-testid="stDateInput"] input {
+          background: rgba(255,255,255,0.04) !important;
+          border: 1px solid rgba(255,255,255,0.12) !important;
+          color: var(--text) !important;
+        }
+        
+        
+        /* ---- CHECKBOX (Include 'Other') ---- */
+        div[data-testid="stCheckbox"] input[type="checkbox"] {
+          accent-color: var(--accent) !important;
+        }
+        
+        
+        /* ---- FOCUS STATES (kills red outlines) ---- */
+        *:focus,
+        *:focus-visible {
+          outline: none !important;
+          box-shadow: 0 0 0 3px rgba(91,143,249,0.35) !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
