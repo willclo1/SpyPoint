@@ -530,7 +530,51 @@ def inject_css():
         div[data-testid="stSlider"] span {
           color: var(--muted) !important;
         }
+
         
+                    /* =========================================================
+           LAST RED REMOVAL (INLINE OVERRIDES)
+           - Fixes: slider value text (24/92), radio selection dots
+           ========================================================= */
+        
+        /* ---------- 1) SLIDER: force the red numbers to NOT be red ---------- */
+        /* Streamlit sometimes sets these numbers with inline style color.
+           This targets any element inside the slider that has inline red. */
+        div[data-testid="stSlider"] *[style*="rgb(255, 75, 75)"],
+        div[data-testid="stSlider"] *[style*="#ff4b4b"],
+        div[data-testid="stSlider"] *[style*="color: red"],
+        div[data-testid="stSlider"] *[style*="color:red"] {
+          color: var(--muted) !important;
+        }
+        
+        /* Also catch common “danger” red variants */
+        div[data-testid="stSlider"] *[style*="rgb(255,75,75)"],
+        div[data-testid="stSlider"] *[style*="rgb(255, 0, 0)"],
+        div[data-testid="stSlider"] *[style*="rgb(255,0,0)"] {
+          color: var(--muted) !important;
+        }
+        
+        /* ---------- 2) RADIO: force the selected dot to use accent ---------- */
+        /* In some versions, the selected dot is an SVG filled by a theme token.
+           We override fill/stroke for radio SVGs only. */
+        div[data-testid="stRadio"] [role="radio"] svg,
+        div[data-testid="stRadio"] [data-baseweb="radio"] svg {
+          fill: var(--accent) !important;
+          color: var(--accent) !important;
+        }
+        
+        /* Some builds draw the dot using <circle> or <path> */
+        div[data-testid="stRadio"] [role="radio"] svg * ,
+        div[data-testid="stRadio"] [data-baseweb="radio"] svg * {
+          fill: var(--accent) !important;
+          stroke: var(--accent) !important;
+        }
+        
+        /* Ensure the outer ring isn’t red either */
+        div[data-testid="stRadio"] [role="radio"][aria-checked="true"] > div,
+        div[data-testid="stRadio"] [data-baseweb="radio"][aria-checked="true"] > div {
+          border-color: var(--accent) !important;
+        }
 
       
     </style>
