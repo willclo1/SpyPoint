@@ -12,6 +12,42 @@ from data_prep import clamp_temp_domain
 from drive_io import resolve_image_link
 
 
+# --- Chart color palettes (curated, not rainbow) -----------------------------
+
+# A tasteful categorical palette (12 distinct, not neon, works on dark/light)
+WILDLIFE_PALETTE = [
+    "#5B8FF9",  # blue
+    "#61DDAA",  # mint
+    "#65789B",  # slate
+    "#F6BD16",  # warm yellow
+    "#7262FD",  # violet
+    "#78D3F8",  # sky
+    "#9661BC",  # purple
+    "#F6903D",  # orange
+    "#008685",  # teal
+    "#F08BB4",  # pink
+    "#B8E986",  # soft green
+    "#D3ADF7",  # lavender
+]
+
+# Single-series colors (slightly richer + less “default”)
+SECTION_COLORS = {
+    "wildlife": "#2E7D32",  # deep green
+    "people": "#1E88E5",    # richer blue
+    "vehicle": "#FB8C00",   # richer orange
+}
+
+
+def stable_color_domain(values: list[str], palette: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Build a stable (deterministic) mapping from category -> color.
+    Sorting makes it stable across reruns; palette cycles if needed.
+    """
+    domain = sorted([str(v) for v in values if v is not None and str(v).strip() != ""])
+    color_range = [palette[i % len(palette)] for i in range(len(domain))]
+    return domain, color_range
+
+
 @st.cache_data(ttl=3600)
 def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_func):
     """Cache thumbnail downloads to avoid repeated API calls."""
@@ -19,7 +55,7 @@ def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_f
         service = _drive_client_factory()
         img_bytes = _download_bytes_func(service, file_id)
         return img_bytes
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -320,11 +356,17 @@ def render_timeline(base: pd.DataFrame, section: str):
             other="Other",
         )
 
-        color_enc = alt.Color(
-            "wildlife_group_chart:N", 
-            title="Animal",
-            scale=alt.Scale(scheme='category20')
+        domain, color_range = stable_color_domain(
+            chart_df["wildlife_group_chart"].unique().tolist(),
+            WILDLIFE_PALETTE,
         )
+
+        color_enc = alt.Color(
+            "wildlife_group_chart:N",
+            title="Animal",
+            scale=alt.Scale(domain=domain, range=color_range),
+        )
+
         tooltip = [
             alt.Tooltip("datetime:T", title="Time"),
             alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
@@ -333,9 +375,9 @@ def render_timeline(base: pd.DataFrame, section: str):
         ]
     else:
         chart_df["type_label"] = section.lower()
-        color_map = {"wildlife": "#4CAF50", "people": "#2196F3", "vehicle": "#FF9800"}
-        color = color_map.get(section.lower(), "#4CAF50")
+        color = SECTION_COLORS.get(section.lower(), SECTION_COLORS["wildlife"])
         color_enc = alt.Color("type_label:N", legend=None, scale=alt.Scale(range=[color]))
+
         tooltip = [
             alt.Tooltip("datetime:T", title="Time"),
             alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
@@ -346,7 +388,7 @@ def render_timeline(base: pd.DataFrame, section: str):
 
     scatter = (
         alt.Chart(chart_df)
-        .mark_circle(size=200, opacity=0.7)
+        .mark_circle(size=200, opacity=0.75, stroke="white", strokeWidth=0.7)
         .encode(
             x=alt.X("datetime:T", title="Date & Time"),
             y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[y_lo, y_hi])),
@@ -356,6 +398,7 @@ def render_timeline(base: pd.DataFrame, section: str):
         .properties(height=300)
         .interactive()
     )
+
     st.altair_chart(scatter, use_container_width=True)
 
 
@@ -376,19 +419,24 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     else:
         patt["time_label"] = patt["hour"].astype(int).astype(str) + ":00"
 
+    # People / Vehicles
     if section != "Wildlife":
-        color_map = {"People": "#2196F3", "Vehicles": "#FF9800"}
-        chart_color = color_map.get(section, "#4CAF50")
-        
+        chart_color = SECTION_COLORS.get(section.lower(), SECTION_COLORS["wildlife"])
+
         by_time = patt.groupby("time_label").size().reset_index(name="Sightings")
         by_time["__h"] = by_time["time_label"].str.split(":").str[0].astype(int)
         by_time = by_time.sort_values("__h")
 
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar(color=chart_color, opacity=0.8)
+            .mark_bar(color=chart_color, opacity=0.85)
             .encode(
-                x=alt.X("time_label:N", title="Time of Day", sort=by_time["time_label"].tolist(), axis=alt.Axis(labelAngle=0)),
+                x=alt.X(
+                    "time_label:N",
+                    title="Time of Day",
+                    sort=by_time["time_label"].tolist(),
+                    axis=alt.Axis(labelAngle=0),
+                ),
                 y=alt.Y("Sightings:Q", title="Count"),
                 tooltip=[alt.Tooltip("time_label:N", title="Time"), alt.Tooltip("Sightings:Q", title="Count")],
             )
@@ -400,7 +448,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
 
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar(color=chart_color, opacity=0.8)
+            .mark_bar(color=chart_color, opacity=0.85)
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
                 x=alt.X("Sightings:Q", title="Count"),
@@ -436,14 +484,17 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
 
     time_order = sorted(by_time["time_label"].unique().tolist(), key=_time_sort_key)
 
+    # Stable wildlife color mapping
+    domain_w, range_w = stable_color_domain(by_time["animal_group"].unique().tolist(), WILDLIFE_PALETTE)
+
     if bar_style == "Grouped":
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar()
+            .mark_bar(opacity=0.9)
             .encode(
                 x=alt.X("time_label:N", title="Time of Day", sort=time_order, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
-                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(domain=domain_w, range=range_w)),
                 xOffset="animal_group:N",
                 tooltip=[
                     alt.Tooltip("time_label:N", title="Time"),
@@ -456,11 +507,11 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     else:
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar()
+            .mark_bar(opacity=0.9)
             .encode(
                 x=alt.X("time_label:N", title="Time of Day", sort=time_order, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
-                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(domain=domain_w, range=range_w)),
                 tooltip=[
                     alt.Tooltip("time_label:N", title="Time"),
                     alt.Tooltip("animal_group:N", title="Animal"),
@@ -474,14 +525,17 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     by_day["weekday"] = pd.Categorical(by_day["weekday"], categories=weekday_order, ordered=True)
     by_day = by_day.sort_values(["weekday", "animal_group"])
 
+    # Ensure day chart uses same palette/domain
+    domain_d, range_d = stable_color_domain(by_day["animal_group"].unique().tolist(), WILDLIFE_PALETTE)
+
     if bar_style == "Grouped":
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar()
+            .mark_bar(opacity=0.9)
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
                 x=alt.X("Sightings:Q", title="Count"),
-                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(domain=domain_d, range=range_d)),
                 yOffset="animal_group:N",
                 tooltip=[
                     alt.Tooltip("weekday:N", title="Day"),
@@ -494,11 +548,11 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     else:
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar()
+            .mark_bar(opacity=0.9)
             .encode(
                 y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
                 x=alt.X("Sightings:Q", title="Count"),
-                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(scheme='category20')),
+                color=alt.Color("animal_group:N", title="Animal", scale=alt.Scale(domain=domain_d, range=range_d)),
                 tooltip=[
                     alt.Tooltip("weekday:N", title="Day"),
                     alt.Tooltip("animal_group:N", title="Animal"),
@@ -520,19 +574,16 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
 def _calculate_insights(row, base: pd.DataFrame, section: str):
     """Generate contextual insights for selected sighting."""
     insights = []
-    
+
     cam = row.get("camera", "").strip()
     dt = row.get("datetime")
-    
+
     if pd.isna(dt):
         return insights
-    
+
     # Same camera, same day
-    same_day = base[
-        (base["camera"] == cam) & 
-        (base["datetime"].dt.date == dt.date())
-    ]
-    
+    same_day = base[(base["camera"] == cam) & (base["datetime"].dt.date == dt.date())]
+
     if len(same_day) > 1:
         if section == "Wildlife":
             animal = row.get("wildlife_label", "")
@@ -543,22 +594,19 @@ def _calculate_insights(row, base: pd.DataFrame, section: str):
                 insights.append(f"{len(same_day)} total sightings at {cam} today")
         else:
             insights.append(f"{len(same_day)} sightings at {cam} today")
-    
+
     # Temperature context
     temp = row.get("temp_f")
     if pd.notna(temp):
         yesterday = dt - pd.Timedelta(days=1)
-        yesterday_data = base[
-            (base["datetime"] >= yesterday) & 
-            (base["datetime"] < dt - pd.Timedelta(hours=12))
-        ]
+        yesterday_data = base[(base["datetime"] >= yesterday) & (base["datetime"] < dt - pd.Timedelta(hours=12))]
         if not yesterday_data.empty and yesterday_data["temp_f"].notna().any():
             avg_yesterday = yesterday_data["temp_f"].mean()
             diff = temp - avg_yesterday
             if abs(diff) > 5:
                 direction = "warmer" if diff > 0 else "cooler"
                 insights.append(f"{abs(int(diff))}°F {direction} than previous day")
-    
+
     # Peak activity time
     if section == "Wildlife":
         animal = row.get("wildlife_label", "")
@@ -567,7 +615,7 @@ def _calculate_insights(row, base: pd.DataFrame, section: str):
             hour_counts = animal_data["datetime"].dt.hour.value_counts()
             peak_hour = hour_counts.idxmax()
             insights.append(f"Peak activity: {peak_hour}:00-{peak_hour+1}:00")
-    
+
     return insights
 
 
@@ -582,7 +630,6 @@ def render_listing_and_viewer(
     """
     Photo gallery - filtered data passed in
     """
-    
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
     if section == "Wildlife" and not include_other:
@@ -595,80 +642,84 @@ def render_listing_and_viewer(
     # Ensure gallery_limit is initialized
     if "gallery_limit" not in st.session_state:
         st.session_state.gallery_limit = 8
-    
+
     display_view = view.head(st.session_state.gallery_limit)
-    
+
     # Photo Gallery - simple display, no selection
     cols_per_row = 2
     rows = (len(display_view) + cols_per_row - 1) // cols_per_row
-    
+
     for row_idx in range(rows):
         cols = st.columns(cols_per_row)
-        
+
         for col_idx in range(cols_per_row):
             item_idx = row_idx * cols_per_row + col_idx
             if item_idx >= len(display_view):
                 break
-            
+
             row = display_view.iloc[item_idx]
             event_id = row.get("event_id", "")
             cam = str(row.get("camera", "")).strip()
             fn = str(row.get("filename", "")).strip()
             dt = row.get("datetime")
             temp = row.get("temp_f")
-            
+
             if section == "Wildlife":
                 label = row.get("wildlife_label", "Other")
             else:
                 label = (row.get("event_type", "")).capitalize()
-            
+
             time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
             temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
-            
+
             with cols[col_idx]:
                 # Try to load thumbnail
                 url, fid = resolve_image_link(cam, fn, image_index)
-                
+
                 # Card container (no selection)
                 st.markdown('<div class="sighting-card">', unsafe_allow_html=True)
-                
+
                 # Thumbnail
                 if fid:
                     img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
                     if img_bytes:
                         st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
                         st.image(img_bytes, use_container_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
+                        st.markdown(
+                            '<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>',
+                            unsafe_allow_html=True,
+                        )
                 else:
-                    st.markdown('<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>', unsafe_allow_html=True)
-                
+                    st.markdown(
+                        '<div class="card-thumbnail"><div class="card-thumbnail-placeholder">📷</div></div>',
+                        unsafe_allow_html=True,
+                    )
+
                 # Card content
                 st.markdown('<div class="card-content">', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
-                
+
                 # Add Drive link
                 if url:
-                    st.markdown(f'<a href="{url}" target="_blank" style="font-size: 0.8rem; opacity: 0.7;">View in Drive</a>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Load More button
+                    st.markdown(
+                        f'<a href="{url}" target="_blank" style="font-size: 0.8rem; opacity: 0.7;">View in Drive</a>',
+                        unsafe_allow_html=True,
+                    )
+
+                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+    # Load More button (deduped)
     if len(view) > st.session_state.gallery_limit:
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
-        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key=f"load_more_{section}"):
+        if st.button(
+            f"Load More ({len(view) - st.session_state.gallery_limit} remaining)",
+            key=f"load_more_{section}",
+        ):
             st.session_state.gallery_limit += 8
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Load More button
-    if len(view) > st.session_state.gallery_limit:
-        st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
-        if st.button(f"Load More ({len(view) - st.session_state.gallery_limit} remaining)", key="load_more"):
-            st.session_state.gallery_limit += 8
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
