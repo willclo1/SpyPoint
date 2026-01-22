@@ -580,7 +580,7 @@ def render_timeline(base: pd.DataFrame, section: str):
 
     scatter = (
         alt.Chart(chart_df)
-        .mark_circle(size=120, opacity=0.80, stroke="rgba(255,255,255,0.45)", strokeWidth=0.7)
+        .mark_circle(size=200, opacity=0.80, stroke="rgba(255,255,255,0.45)", strokeWidth=0.7)
         .encode(
             x=alt.X("datetime:T", title="Date & Time"),
             y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[y_lo, y_hi])),
