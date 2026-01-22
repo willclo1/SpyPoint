@@ -2,12 +2,53 @@
 import streamlit as st
 
 from data_prep import nice_last_modified, prep_df
-from drive_io import index_images_by_camera, load_events_from_drive, _drive_client, _download_drive_file_bytes
+from drive_io import (
+    index_images_by_camera,
+    load_events_from_drive,
+    _drive_client,
+    _download_drive_file_bytes,
+)
 from ui_components import inject_css, render_patterns, render_timeline, render_listing_and_viewer
 
 
 st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 inject_css()
+
+# --- Top nav CSS (centered long buttons) ---
+st.markdown(
+    """
+    <style>
+      .top-nav {
+        display: flex;
+        justify-content: center;
+        margin-top: 0.6rem;
+        margin-bottom: 1.1rem;
+      }
+      .top-nav-inner {
+        width: 100%;
+        max-width: 720px; /* adjust: wider = longer buttons */
+      }
+      .top-nav-inner button {
+        height: 54px;
+        font-size: 1.05rem !important;
+        font-weight: 750 !important;
+        letter-spacing: 0.01em;
+        border-radius: 12px !important;
+      }
+      .nav-divider {
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255,255,255,0.18),
+          transparent
+        );
+        margin-bottom: 1.4rem;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Initialize session state
 if "current_view" not in st.session_state:
@@ -50,30 +91,43 @@ if not image_index:
 
 
 # ---------------------------
-# VIEW SELECTOR (instead of tabs)
+# TOP VIEW SELECTOR (CENTERED LONG BUTTONS)
 # ---------------------------
+st.markdown('<div class="top-nav"><div class="top-nav-inner">', unsafe_allow_html=True)
 
-# View selector at top
-col1, col2, col3 = st.columns([1, 1, 8])
-with col1:
-    if st.button("📊 Data Dashboard", use_container_width=True, type="primary" if st.session_state.current_view == "dashboard" else "secondary"):
+nav1, nav2 = st.columns([1, 1], gap="large")
+with nav1:
+    if st.button(
+        "📊 Data Dashboard",
+        use_container_width=True,
+        type="primary" if st.session_state.current_view == "dashboard" else "secondary",
+        key="nav_dashboard",
+    ):
         st.session_state.current_view = "dashboard"
         st.rerun()
-with col2:
-    if st.button("📸 Photo Browser", use_container_width=True, type="primary" if st.session_state.current_view == "photos" else "secondary"):
+
+with nav2:
+    if st.button(
+        "📸 Photo Browser",
+        use_container_width=True,
+        type="primary" if st.session_state.current_view == "photos" else "secondary",
+        key="nav_photos",
+    ):
         st.session_state.current_view = "photos"
         st.rerun()
 
-st.markdown("---")
+st.markdown("</div></div>", unsafe_allow_html=True)
+st.markdown("<div class='nav-divider'></div>", unsafe_allow_html=True)
+
 
 # Render appropriate view
 if st.session_state.current_view == "dashboard":
-    
+
     st.title("Ranch Activity Dashboard")
     st.caption("Wildlife, people, and vehicle monitoring system")
-    
+
     st.success(f"Loaded **{len(df):,}** events • Last updated: **{last_mod_pretty}**")
-    
+
     # ---------------------------
     # Sidebar filters for Data Dashboard ONLY
     # ---------------------------
@@ -182,7 +236,7 @@ if st.session_state.current_view == "dashboard":
     render_timeline(base, section)
     st.markdown("---")
     render_patterns(base, section, include_other, bar_style, time_gran)
-    
+
     # Footer
     st.divider()
     st.caption(
@@ -197,33 +251,33 @@ else:  # photos view
         st.info("📸 Photo Browser filters are shown in the main area above")
         st.markdown("---")
         st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
-    
+
     st.title("Photo Browser")
     st.caption("Browse and view individual sightings")
-    
+
     # ---------------------------
     # Inline Filters (not in sidebar)
     # ---------------------------
     st.markdown("### Filters")
-    
+
     filter_col1, filter_col2, filter_col3 = st.columns(3)
-    
+
     with filter_col1:
         section_photos = st.selectbox("Category", ["Wildlife", "People", "Vehicles"], index=0, key="photo_section")
-    
+
     with filter_col2:
         camera_options_photos = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
         if camera_options_photos:
             selected_cameras_photos = st.multiselect("Cameras", options=camera_options_photos, default=camera_options_photos, key="photo_cameras")
         else:
             selected_cameras_photos = []
-    
+
     with filter_col3:
         valid_dt_photos = df.dropna(subset=["datetime"])
         if not valid_dt_photos.empty:
             min_dt_photos = valid_dt_photos["datetime"].min()
             max_dt_photos = valid_dt_photos["datetime"].max()
-            
+
             date_range_photos = st.date_input(
                 "Date Range",
                 value=(min_dt_photos.date(), max_dt_photos.date()),
@@ -231,10 +285,10 @@ else:  # photos view
                 max_value=max_dt_photos.date(),
                 key="photo_dates"
             )
-    
+
     # Additional filters row
     filter_col4, filter_col5, filter_col6 = st.columns(3)
-    
+
     temp_range_photos = None
     if not valid_dt_photos.empty:
         temp_series_photos = valid_dt_photos["temp_f"].dropna()
@@ -246,32 +300,32 @@ else:  # photos view
                     tmin_photos -= 1
                     tmax_photos += 1
                 temp_range_photos = st.slider("Temperature (°F)", min_value=tmin_photos, max_value=tmax_photos, value=(tmin_photos, tmax_photos), key="photo_temp")
-    
+
     # Wildlife-specific filters
     species_filter_photos = []
     include_other_photos = False
-    
+
     if section_photos == "Wildlife":
         with filter_col5:
             include_other_photos = st.checkbox("Include 'Other'", value=False, key="photo_include_other")
-        
+
         wild_pool_photos = df[df["event_type"] == "animal"].copy()
         if not include_other_photos:
             wild_pool_photos = wild_pool_photos[wild_pool_photos["wildlife_label"] != "Other"]
-        
+
         sp_opts_photos = sorted([s for s in wild_pool_photos["wildlife_label"].unique().tolist() if s])
         if sp_opts_photos:
             with filter_col6:
                 species_filter_photos = st.multiselect("Animals", options=sp_opts_photos, default=[], key="photo_species")
-    
+
     st.markdown("---")
-    
+
     # Apply filters for photos
     base_photos = df.dropna(subset=["datetime"]).copy()
-    
+
     if selected_cameras_photos:
         base_photos = base_photos[base_photos["camera"].isin(selected_cameras_photos)]
-    
+
     if section_photos == "Wildlife":
         base_photos = base_photos[base_photos["event_type"] == "animal"].copy()
         if not include_other_photos:
@@ -280,21 +334,20 @@ else:  # photos view
         base_photos = base_photos[base_photos["event_type"] == "human"].copy()
     else:
         base_photos = base_photos[base_photos["event_type"] == "vehicle"].copy()
-    
+
     start_photos, end_photos = date_range_photos
     base_photos = base_photos[(base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)]
-    
+
     if temp_range_photos is not None:
         lo_photos, hi_photos = temp_range_photos
         base_photos = base_photos[base_photos["temp_f"].notna()]
         base_photos = base_photos[(base_photos["temp_f"] >= lo_photos) & (base_photos["temp_f"] <= hi_photos)]
-    
+
     if section_photos == "Wildlife" and species_filter_photos:
         base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
-    
-    # Show count
+
     st.info(f"Showing {len(base_photos):,} sightings")
-    
+
     render_listing_and_viewer(
         base=base_photos,
         section=section_photos,
