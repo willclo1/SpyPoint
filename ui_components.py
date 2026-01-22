@@ -165,12 +165,6 @@ def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_f
 # =============================================================================
 
 def inject_css():
-    """
-    Premium UI skin:
-    - Unified palette via CSS variables
-    - Sticky, clickable tabs (navigation fix)
-    - Card system, spacing, typography
-    """
     st.markdown(
         f"""
         <style>
@@ -183,18 +177,22 @@ def inject_css():
             --text: {PALETTE["text"]};
             --muted: {PALETTE["muted"]};
             --muted-2: {PALETTE["muted_2"]};
-            --primary: {PALETTE["primary"]};
+
+            /* App accent (kills the Streamlit red vibe) */
+            --accent: {PALETTE["primary"]};
+            --accent-2: {PALETTE["secondary"]};
+            --focus: rgba(91,143,249,0.35);
+
             --shadow: 0 14px 40px rgba(0,0,0,0.35);
             --shadow-soft: 0 10px 26px rgba(0,0,0,0.28);
             --radius: 14px;
             --radius-sm: 10px;
-            --pad: 1.1rem;
-
-            /* Sticky tabs offset: Streamlit header height varies; this works well */
             --top-offset: 3.25rem;
           }}
 
-          /* App background */
+          /* =========================================================
+             GLOBAL
+             ========================================================= */
           .stApp {{
             background: radial-gradient(1200px 700px at 20% -10%, rgba(91,143,249,0.18) 0%, rgba(0,0,0,0) 55%),
                         radial-gradient(900px 600px at 90% 0%, rgba(97,221,170,0.12) 0%, rgba(0,0,0,0) 50%),
@@ -202,95 +200,27 @@ def inject_css():
             color: var(--text);
           }}
 
-          /* Base layout */
           .block-container {{
-            padding-top: 4.2rem;  /* allow room for sticky tabs/nav */
+            padding-top: 4.2rem;
             padding-bottom: 2.75rem;
             max-width: 1320px;
           }}
 
-          /* Streamlit header: keep it above but visually subtle */
           header[data-testid="stHeader"] {{
             background: rgba(11,18,32,0.65);
             backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(255,255,255,0.06);
           }}
 
-          /* Typography */
           h1, h2, h3 {{
             letter-spacing: -0.02em;
             font-weight: 650;
             color: var(--text);
           }}
-          h1 {{ font-size: 2.2rem; margin-bottom: 0.25rem; }}
-          h2 {{ font-size: 1.55rem; margin-bottom: 0.85rem; }}
-          h3 {{ font-size: 1.2rem; margin-bottom: 0.65rem; }}
-          p, li, span, label {{ color: var(--text); }}
 
-          .small-muted {{
-            opacity: 0.78;
-            color: var(--muted);
-            font-size: 0.92rem;
-          }}
-
-          /* Sidebar (if used elsewhere) */
-          section[data-testid="stSidebar"] {{
-            background: rgba(15,26,46,0.9);
-            backdrop-filter: blur(10px);
-            border-right: 1px solid rgba(255,255,255,0.06);
-          }}
-
-          /* Buttons */
-          button[kind="secondary"], button[kind="primary"] {{
-            border-radius: 10px !important;
-            font-weight: 600 !important;
-            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-          }}
-          button[kind="primary"] {{
-            background: linear-gradient(180deg, rgba(91,143,249,0.95), rgba(91,143,249,0.8)) !important;
-          }}
-          button:hover {{
-            transform: translateY(-1px);
-            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
-          }}
-
-          /* Metrics */
-          div[data-testid="stMetricValue"] {{
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text);
-          }}
-          div[data-testid="stMetricLabel"] {{
-            font-size: 0.8rem;
-            opacity: 0.8;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-weight: 650;
-          }}
-
-          /* Alerts */
-          .stAlert {{
-            border-radius: var(--radius-sm);
-            border-left: 4px solid rgba(91,143,249,0.85);
-            background: rgba(15,26,46,0.7);
-            border-top: 1px solid rgba(255,255,255,0.06);
-            border-right: 1px solid rgba(255,255,255,0.06);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-          }}
-
-          /* DataFrames */
-          .stDataFrame {{
-            border-radius: var(--radius-sm);
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.08);
-          }}
-
-          /* ============================
+          /* =========================================================
              NAV / TABS FIX (sticky + clickable)
-             ============================ */
-
-          /* Tab list becomes sticky, separated, always clickable */
+             ========================================================= */
           .stTabs [data-baseweb="tab-list"] {{
             position: sticky;
             top: var(--top-offset);
@@ -318,15 +248,121 @@ def inject_css():
             border: 1px solid rgba(91,143,249,0.25) !important;
           }}
 
-          /* Keep tab panels from jumping under sticky tabs */
-          .stTabs [data-baseweb="tab-panel"] {{
-            padding-top: 0.25rem;
+          /* =========================================================
+             WIDGET THEME OVERRIDES (filters)
+             - Removes red defaults
+             - Unifies accent + focus styles
+             ========================================================= */
+
+          /* Make default Streamlit accent feel like your palette */
+          html, body, [class*="st-"] {{
+            accent-color: var(--accent);
           }}
 
-          /* ============================
-             SIGHTING CARD GALLERY
-             ============================ */
+          /* Focus ring */
+          :is(button, input, textarea, select, [role="slider"], [role="combobox"]):focus,
+          :is(button, input, textarea, select, [role="slider"], [role="combobox"]):focus-visible {{
+            outline: none !important;
+            box-shadow: 0 0 0 3px var(--focus) !important;
+            border-color: rgba(91,143,249,0.35) !important;
+          }}
 
+          /* Text inputs / number inputs / textareas */
+          div[data-testid="stTextInput"] input,
+          div[data-testid="stNumberInput"] input,
+          div[data-testid="stTextArea"] textarea {{
+            background: rgba(255,255,255,0.03) !important;
+            color: var(--text) !important;
+            border: 1px solid rgba(255,255,255,0.10) !important;
+            border-radius: 10px !important;
+          }}
+          div[data-testid="stTextInput"] input:hover,
+          div[data-testid="stNumberInput"] input:hover,
+          div[data-testid="stTextArea"] textarea:hover {{
+            border-color: rgba(255,255,255,0.16) !important;
+          }}
+
+          /* Selectbox / Multiselect baseweb styling */
+          div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+          div[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+            background: rgba(255,255,255,0.03) !important;
+            border: 1px solid rgba(255,255,255,0.10) !important;
+            border-radius: 10px !important;
+          }}
+          div[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
+          div[data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover {{
+            border-color: rgba(255,255,255,0.16) !important;
+          }}
+
+          /* Multiselect "pills" */
+          div[data-testid="stMultiSelect"] [data-baseweb="tag"] {{
+            background: rgba(91,143,249,0.16) !important;
+            border: 1px solid rgba(91,143,249,0.25) !important;
+            color: var(--text) !important;
+            border-radius: 999px !important;
+          }}
+          div[data-testid="stMultiSelect"] [data-baseweb="tag"] span {{
+            color: var(--text) !important;
+          }}
+
+          /* Dropdown menu surface */
+          [data-baseweb="popover"] [role="listbox"] {{
+            background: rgba(15,26,46,0.98) !important;
+            border: 1px solid rgba(255,255,255,0.10) !important;
+            border-radius: 12px !important;
+            box-shadow: var(--shadow-soft) !important;
+          }}
+          [data-baseweb="popover"] [role="option"] {{
+            color: var(--text) !important;
+          }}
+          [data-baseweb="popover"] [role="option"][aria-selected="true"] {{
+            background: rgba(91,143,249,0.16) !important;
+          }}
+          [data-baseweb="popover"] [role="option"]:hover {{
+            background: rgba(255,255,255,0.06) !important;
+          }}
+
+          /* Sliders */
+          div[data-testid="stSlider"] [role="slider"] {{
+            color: var(--accent) !important;
+          }}
+          /* Track + fill (baseweb) */
+          div[data-testid="stSlider"] [data-baseweb="slider"] div[role="presentation"] > div {{
+            background: rgba(255,255,255,0.10) !important;
+          }}
+          div[data-testid="stSlider"] [data-baseweb="slider"] div[role="presentation"] > div > div {{
+            background: rgba(91,143,249,0.75) !important;
+          }}
+
+          /* Checkbox + Radio */
+          div[data-testid="stCheckbox"] input[type="checkbox"],
+          div[data-testid="stRadio"] input[type="radio"] {{
+            accent-color: var(--accent) !important;
+          }}
+
+          /* Toggle (st.toggle uses checkbox under the hood) */
+          div[data-testid="stToggle"] input {{
+            accent-color: var(--accent) !important;
+          }}
+
+          /* Buttons */
+          button[kind="primary"] {{
+            background: linear-gradient(180deg, rgba(91,143,249,0.95), rgba(91,143,249,0.80)) !important;
+            border: 1px solid rgba(91,143,249,0.35) !important;
+          }}
+          button[kind="secondary"] {{
+            background: rgba(255,255,255,0.04) !important;
+            border: 1px solid rgba(255,255,255,0.10) !important;
+            color: var(--text) !important;
+          }}
+          button:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+          }}
+
+          /* =========================================================
+             Gallery Cards
+             ========================================================= */
           .sighting-card {{
             background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
             border: 1px solid rgba(255,255,255,0.10);
@@ -354,13 +390,11 @@ def inject_css():
             overflow: hidden;
             position: relative;
           }}
-
           .card-thumbnail img {{
             width: 100%;
             height: 100%;
             object-fit: cover;
           }}
-
           .card-thumbnail::after {{
             content: "";
             position: absolute;
@@ -372,7 +406,6 @@ def inject_css():
           .card-content {{
             padding: 0.95rem 0.95rem 0.9rem;
           }}
-
           .card-title {{
             font-size: 1.02rem;
             font-weight: 750;
@@ -380,24 +413,14 @@ def inject_css():
             line-height: 1.25;
             color: var(--text);
           }}
-
           .card-meta {{
             font-size: 0.88rem;
             color: var(--muted);
             margin-bottom: 0.25rem;
           }}
-
           .card-temp {{
             font-size: 0.88rem;
             color: var(--muted-2);
-          }}
-
-          a {{
-            color: rgba(91,143,249,0.95);
-            text-decoration: none;
-          }}
-          a:hover {{
-            text-decoration: underline;
           }}
 
           .load-more-btn {{
@@ -405,7 +428,6 @@ def inject_css():
             margin-top: 1.25rem;
           }}
 
-          /* Chart container tighten */
           .vega-embed {{
             padding: 0 !important;
           }}
