@@ -522,7 +522,7 @@ def inject_css():
         .replace("__ACCENT_2__", PALETTE["secondary"])
     )
 
-    st.down(css, unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 # =============================================================================
