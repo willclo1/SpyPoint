@@ -478,6 +478,61 @@ def inject_css():
 
       /* Chart styling */
       .vega-embed { padding: 0 !important; }
+            /* =========================================================
+           KILL THE LAST RED: radio inner-dot + slider thumbs + slider values
+           ========================================================= */
+        
+        /* ---------- RADIO: force BaseWeb radio to use our accent ---------- */
+        /* BaseWeb radio uses currentColor internally for the filled dot */
+        div[data-testid="stRadio"] [data-baseweb="radio"] {
+          color: var(--accent) !important;
+        }
+        
+        /* Some Streamlit versions render radio without data-baseweb attr */
+        div[data-testid="stRadio"] [role="radio"] {
+          color: var(--accent) !important;
+        }
+        
+        /* Ensure checked state uses accent (dot + ring) */
+        div[data-testid="stRadio"] input[type="radio"]:checked + div {
+          border-color: var(--accent) !important;
+        }
+        div[data-testid="stRadio"] input[type="radio"]:checked + div::before {
+          background-color: var(--accent) !important;
+        }
+        
+        
+        /* ---------- SLIDER: thumbs + track + min/max text ---------- */
+        
+        /* Thumb circles (BaseWeb slider) */
+        div[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] > div {
+          background-color: var(--accent) !important;
+          border-color: var(--accent) !important;
+          box-shadow: 0 0 0 2px rgba(11,18,32,0.75) !important; /* subtle contrast ring */
+        }
+        
+        /* Track background */
+        div[data-testid="stSlider"] [data-baseweb="slider"] > div > div {
+          background: rgba(255,255,255,0.14) !important;
+        }
+        
+        /* Track filled range */
+        div[data-testid="stSlider"] [data-baseweb="slider"] > div > div > div {
+          background: linear-gradient(90deg, rgba(91,143,249,0.95), rgba(91,143,249,0.75)) !important;
+        }
+        
+        /* Min/Max values (24, 92) + any slider value labels */
+        div[data-testid="stSlider"] [data-testid="stTickBarMin"],
+        div[data-testid="stSlider"] [data-testid="stTickBarMax"],
+        div[data-testid="stSlider"] .stMarkdown,
+        div[data-testid="stSlider"] .stMarkdown p,
+        div[data-testid="stSlider"] label,
+        div[data-testid="stSlider"] span {
+          color: var(--muted) !important;
+        }
+        
+
+      
     </style>
     """
 
