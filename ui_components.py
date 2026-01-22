@@ -522,7 +522,7 @@ def inject_css():
         .replace("__ACCENT_2__", PALETTE["secondary"])
     )
 
-    st.markdown(css, unsafe_allow_html=True)
+    st.down(css, unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -580,7 +580,7 @@ def render_timeline(base: pd.DataFrame, section: str):
 
     scatter = (
         alt.Chart(chart_df)
-        .mark_circle(size=200, opacity=0.80, stroke="rgba(255,255,255,0.45)", strokeWidth=1.2)
+        .mark_circle(size=200, opacity=0.60, stroke="rgba(255,255,255,0.45)", strokeWidth=0.6)
         .encode(
             x=alt.X("datetime:T", title="Date & Time"),
             y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[y_lo, y_hi])),
