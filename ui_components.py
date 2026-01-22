@@ -194,6 +194,32 @@ def inject_css():
         --top-offset: 3.25rem;
       }
 
+              /* =========================================================
+           FORCE STREAMLIT THEME TOKENS (kills red everywhere)
+           ========================================================= */
+        
+        /* Streamlit theme variables (these drive BaseWeb + widgets) */
+        :root, .stApp {
+          --primary-color: #5B8FF9 !important;
+          --primary-color-rgb: 91, 143, 249 !important;
+        
+          /* These help prevent red fallback in some builds */
+          --text-color: rgba(255,255,255,0.92) !important;
+          --background-color: #0B1220 !important;
+          --secondary-background-color: #0F1A2E !important;
+        }
+        
+        /* Some Streamlit versions use these names */
+        :root, .stApp {
+          --primaryColor: #5B8FF9 !important;
+          --primaryColorRgb: 91, 143, 249 !important;
+        }
+        
+        /* BaseWeb often reads "currentColor" on controls (radio dot etc.) */
+        div[data-testid="stRadio"], div[data-testid="stSlider"] {
+          color: #5B8FF9 !important;
+        }
+
       /* App background */
       .stApp {
         background: radial-gradient(1200px 700px at 20% -10%, rgba(91,143,249,0.18) 0%, rgba(0,0,0,0) 55%),
