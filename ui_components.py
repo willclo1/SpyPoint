@@ -39,18 +39,22 @@ PALETTE = {
 
 # Distinct but tasteful categorical palette (non-neon, cohesive)
 WILDLIFE_PALETTE = [
-    "#5B8FF9",  # blue
-    "#61DDAA",  # mint
-    "#7262FD",  # violet
-    "#F6BD16",  # warm yellow
-    "#78D3F8",  # sky
-    "#9661BC",  # purple
-    "#F6903D",  # orange
-    "#008685",  # teal
-    "#F08BB4",  # pink
-    "#B8E986",  # soft green
-    "#65789B",  # slate
-    "#D3ADF7",  # lavender
+    "#4E79A7",  # blue
+    "#F28E2B",  # orange
+    "#E15759",  # red
+    "#76B7B2",  # teal
+    "#59A14F",  # green
+    "#EDC948",  # yellow
+    "#B07AA1",  # purple
+    "#FF9DA7",  # pink
+    "#9C755F",  # brown
+    "#BAB0AC",  # warm gray (spare)
+    "#1F77B4",  # vivid blue
+    "#D62728",  # vivid red
+    "#2CA02C",  # vivid green
+    "#9467BD",  # vivid purple
+    "#8C564B",  # deep brown
+    "#17BECF",  # cyan
 ]
 
 SECTION_COLORS = {
