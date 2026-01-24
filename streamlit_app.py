@@ -11,8 +11,13 @@ from drive_io import (
 from ui_components import inject_css, render_patterns, render_timeline, render_listing_and_viewer
 
 
+# ---------------------------
+# Config
+# ---------------------------
 st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
 inject_css()
+
+ADV_GALLERY_URL = "https://willclo1.github.io/SpyPointAdvancedGallery/"
 
 # --- Top nav CSS (centered long buttons) ---
 st.markdown(
@@ -26,7 +31,8 @@ st.markdown(
       }
       .top-nav-inner {
         width: 100%;
-        max-width: 720px; /* adjust: wider = longer buttons */
+        /* wider so 3 buttons still feel roomy */
+        max-width: 980px;
       }
       .top-nav-inner button {
         height: 54px;
@@ -45,12 +51,21 @@ st.markdown(
         );
         margin-bottom: 1.4rem;
       }
+      /* Make iframe feel like a "page" */
+      .embed-wrap {
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.12);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Initialize session state
+# ---------------------------
+# Session state
+# ---------------------------
 if "current_view" not in st.session_state:
     st.session_state.current_view = "dashboard"
 if "gallery_limit" not in st.session_state:
@@ -91,11 +106,12 @@ if not image_index:
 
 
 # ---------------------------
-# TOP VIEW SELECTOR (CENTERED LONG BUTTONS)
+# TOP VIEW SELECTOR (3 tabs)
 # ---------------------------
 st.markdown('<div class="top-nav"><div class="top-nav-inner">', unsafe_allow_html=True)
 
-nav1, nav2 = st.columns([1, 1], gap="large")
+nav1, nav2, nav3 = st.columns([1, 1, 1], gap="large")
+
 with nav1:
     if st.button(
         "📊 Data Dashboard",
@@ -116,13 +132,24 @@ with nav2:
         st.session_state.current_view = "photos"
         st.rerun()
 
+with nav3:
+    if st.button(
+        "🦌 Advanced Gallery",
+        use_container_width=True,
+        type="primary" if st.session_state.current_view == "gallery" else "secondary",
+        key="nav_gallery",
+    ):
+        st.session_state.current_view = "gallery"
+        st.rerun()
+
 st.markdown("</div></div>", unsafe_allow_html=True)
 st.markdown("<div class='nav-divider'></div>", unsafe_allow_html=True)
 
 
+# ---------------------------
 # Render appropriate view
+# ---------------------------
 if st.session_state.current_view == "dashboard":
-
     st.title("Ranch Activity Dashboard")
     st.caption("Wildlife, people, and vehicle monitoring system")
 
@@ -136,7 +163,11 @@ if st.session_state.current_view == "dashboard":
         section = st.radio("Category", ["Wildlife", "People", "Vehicles"], index=0, key="dash_section")
 
         camera_options = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
-        selected_cameras = st.multiselect("Cameras", options=camera_options, default=camera_options, key="dash_cameras") if camera_options else []
+        selected_cameras = (
+            st.multiselect("Cameras", options=camera_options, default=camera_options, key="dash_cameras")
+            if camera_options
+            else []
+        )
 
         valid_dt = df.dropna(subset=["datetime"])
         if valid_dt.empty:
@@ -151,7 +182,7 @@ if st.session_state.current_view == "dashboard":
             value=(min_dt.date(), max_dt.date()),
             min_value=min_dt.date(),
             max_value=max_dt.date(),
-            key="dash_dates"
+            key="dash_dates",
         )
 
         temp_series = valid_dt["temp_f"].dropna()
@@ -162,7 +193,13 @@ if st.session_state.current_view == "dashboard":
             if tmin == tmax:
                 tmin -= 1
                 tmax += 1
-            temp_range = st.slider("Temperature (°F)", min_value=tmin, max_value=tmax, value=(tmin, tmax), key="dash_temp")
+            temp_range = st.slider(
+                "Temperature (°F)",
+                min_value=tmin,
+                max_value=tmax,
+                value=(tmin, tmax),
+                key="dash_temp",
+            )
 
         # Wildlife-only filters
         species_filter = []
@@ -245,6 +282,22 @@ if st.session_state.current_view == "dashboard":
         f"Cache: {CACHE_TTL_SECONDS//3600}h"
     )
 
+elif st.session_state.current_view == "gallery":
+    # Sidebar: minimal + link out
+    with st.sidebar:
+        st.header("Advanced Gallery")
+        st.markdown(f"[Open in new tab ↗]({ADV_GALLERY_URL})")
+        st.markdown("---")
+        st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+
+    st.title("Advanced Gallery")
+    st.caption("grouped sightings as events")
+
+    # Big, clean embed
+    st.markdown('<div class="embed-wrap">', unsafe_allow_html=True)
+    st.components.v1.iframe(ADV_GALLERY_URL, height=1400, scrolling=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 else:  # photos view
     # Clear sidebar for photos tab
     with st.sidebar:
@@ -268,7 +321,12 @@ else:  # photos view
     with filter_col2:
         camera_options_photos = sorted([c for c in df["camera"].dropna().unique().tolist() if c])
         if camera_options_photos:
-            selected_cameras_photos = st.multiselect("Cameras", options=camera_options_photos, default=camera_options_photos, key="photo_cameras")
+            selected_cameras_photos = st.multiselect(
+                "Cameras",
+                options=camera_options_photos,
+                default=camera_options_photos,
+                key="photo_cameras",
+            )
         else:
             selected_cameras_photos = []
 
@@ -283,7 +341,7 @@ else:  # photos view
                 value=(min_dt_photos.date(), max_dt_photos.date()),
                 min_value=min_dt_photos.date(),
                 max_value=max_dt_photos.date(),
-                key="photo_dates"
+                key="photo_dates",
             )
 
     # Additional filters row
@@ -299,7 +357,13 @@ else:  # photos view
                 if tmin_photos == tmax_photos:
                     tmin_photos -= 1
                     tmax_photos += 1
-                temp_range_photos = st.slider("Temperature (°F)", min_value=tmin_photos, max_value=tmax_photos, value=(tmin_photos, tmax_photos), key="photo_temp")
+                temp_range_photos = st.slider(
+                    "Temperature (°F)",
+                    min_value=tmin_photos,
+                    max_value=tmax_photos,
+                    value=(tmin_photos, tmax_photos),
+                    key="photo_temp",
+                )
 
     # Wildlife-specific filters
     species_filter_photos = []
@@ -316,7 +380,12 @@ else:  # photos view
         sp_opts_photos = sorted([s for s in wild_pool_photos["wildlife_label"].unique().tolist() if s])
         if sp_opts_photos:
             with filter_col6:
-                species_filter_photos = st.multiselect("Animals", options=sp_opts_photos, default=[], key="photo_species")
+                species_filter_photos = st.multiselect(
+                    "Animals",
+                    options=sp_opts_photos,
+                    default=[],
+                    key="photo_species",
+                )
 
     st.markdown("---")
 
@@ -336,7 +405,9 @@ else:  # photos view
         base_photos = base_photos[base_photos["event_type"] == "vehicle"].copy()
 
     start_photos, end_photos = date_range_photos
-    base_photos = base_photos[(base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)]
+    base_photos = base_photos[
+        (base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)
+    ]
 
     if temp_range_photos is not None:
         lo_photos, hi_photos = temp_range_photos
