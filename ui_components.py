@@ -689,65 +689,75 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         )
 
     # Moon phase chart
-    moon_valid = patt[patt["moon_phase_clean"] != ""].copy()
-    if not moon_valid.empty:
-        # Define moon phase order
-        moon_order = [
-            "New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous",
-            "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"
-        ]
-        
-        by_moon = moon_valid.groupby(["moon_phase_clean", "animal_group"]).size().reset_index(name="Sightings")
-        by_moon["moon_phase_clean"] = pd.Categorical(by_moon["moon_phase_clean"], categories=moon_order, ordered=True)
-        by_moon = by_moon.sort_values(["moon_phase_clean", "animal_group"])
+    if "moon_phase_clean" in patt.columns:
+        moon_valid = patt[patt["moon_phase_clean"] != ""].copy()
+        if not moon_valid.empty:
+            # Define moon phase order
+            moon_order = [
+                "New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous",
+                "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"
+            ]
+            
+            by_moon = moon_valid.groupby(["moon_phase_clean", "animal_group"]).size().reset_index(name="Sightings")
+            by_moon["moon_phase_clean"] = pd.Categorical(by_moon["moon_phase_clean"], categories=moon_order, ordered=True)
+            by_moon = by_moon.sort_values(["moon_phase_clean", "animal_group"])
 
-        if bar_style == "Grouped":
-            moon_chart = (
-                alt.Chart(by_moon)
-                .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
-                .encode(
-                    y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
-                    x=alt.X("Sightings:Q", title="Count"),
-                    color=color_enc,
-                    yOffset="animal_group:N",
-                    tooltip=[
-                        alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
-                        alt.Tooltip("animal_group:N", title="Animal"),
-                        alt.Tooltip("Sightings:Q", title="Count"),
-                    ],
+            if bar_style == "Grouped":
+                moon_chart = (
+                    alt.Chart(by_moon)
+                    .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                    .encode(
+                        y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
+                        x=alt.X("Sightings:Q", title="Count"),
+                        color=color_enc,
+                        yOffset="animal_group:N",
+                        tooltip=[
+                            alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
+                            alt.Tooltip("animal_group:N", title="Animal"),
+                            alt.Tooltip("Sightings:Q", title="Count"),
+                        ],
+                    )
+                    .properties(height=250)
                 )
-                .properties(height=250)
-            )
+            else:
+                moon_chart = (
+                    alt.Chart(by_moon)
+                    .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                    .encode(
+                        y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
+                        x=alt.X("Sightings:Q", title="Count"),
+                        color=color_enc,
+                        tooltip=[
+                            alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
+                            alt.Tooltip("animal_group:N", title="Animal"),
+                            alt.Tooltip("Sightings:Q", title="Count"),
+                        ],
+                    )
+                    .properties(height=250)
+                )
+
+            # Render all three charts
+            cA, cB = st.columns(2)
+            with cA:
+                st.markdown("**By Time of Day**")
+                st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+            with cB:
+                st.markdown("**By Day of Week**")
+                st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+            
+            st.markdown("**By Moon Phase**")
+            st.altair_chart(apply_chart_theme(moon_chart), use_container_width=True)
         else:
-            moon_chart = (
-                alt.Chart(by_moon)
-                .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
-                .encode(
-                    y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
-                    x=alt.X("Sightings:Q", title="Count"),
-                    color=color_enc,
-                    tooltip=[
-                        alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
-                        alt.Tooltip("animal_group:N", title="Animal"),
-                        alt.Tooltip("Sightings:Q", title="Count"),
-                    ],
-                )
-                .properties(height=250)
-            )
-
-        # Render all three charts
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**By Time of Day**")
-            st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
-        with cB:
-            st.markdown("**By Day of Week**")
-            st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
-        
-        st.markdown("**By Moon Phase**")
-        st.altair_chart(apply_chart_theme(moon_chart), use_container_width=True)
+            # No moon data - just show time and day
+            cA, cB = st.columns(2)
+            with cA:
+                st.markdown("**By Time of Day**")
+                st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+            with cB:
+                st.markdown("**By Day of Week**")
+                st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
     else:
-        # No moon data - just show time and day
+        # No moon_phase_clean column - just show time and day
         cA, cB = st.columns(2)
         with cA:
             st.markdown("**By Time of Day**")
