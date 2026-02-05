@@ -14,12 +14,12 @@ from ui_components import inject_css, render_patterns, render_timeline, render_l
 # ---------------------------
 # Config
 # ---------------------------
-st.set_page_config(page_title="Ranch Activity", page_icon="🦌", layout="wide")
+st.set_page_config(page_title="Ranch Events | Wildlife Monitoring", page_icon="🦌", layout="wide")
 inject_css()
 
 ADV_GALLERY_URL = "https://willclo1.github.io/SpyPointAdvancedGallery/"
 
-# --- Top nav CSS (centered long buttons) ---
+# --- Top nav CSS (ranch wildlife theme) ---
 st.markdown(
     """
     <style>
@@ -31,32 +31,79 @@ st.markdown(
       }
       .top-nav-inner {
         width: 100%;
-        /* wider so 3 buttons still feel roomy */
         max-width: 980px;
       }
       .top-nav-inner button {
-        height: 54px;
+        height: 56px;
         font-size: 1.05rem !important;
-        font-weight: 750 !important;
-        letter-spacing: 0.01em;
-        border-radius: 12px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em;
+        border-radius: 16px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
       }
       .nav-divider {
         height: 1px;
         background: linear-gradient(
           90deg,
           transparent,
-          rgba(255,255,255,0.18),
+          rgba(245, 241, 234, 0.18),
           transparent
         );
         margin-bottom: 1.4rem;
       }
-      /* Make iframe feel like a "page" */
+      /* Embed styling */
       .embed-wrap {
-        border-radius: 16px;
+        border-radius: 24px;
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.12);
-        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+        border: 1px solid rgba(245, 241, 234, 0.22);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+      }
+      
+      /* Brand header */
+      .brand-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem 0;
+      }
+      
+      .brand-logo {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        background: linear-gradient(135deg, #8a9a5b 0%, #4a5d3f 100%);
+        border-radius: 14px;
+        box-shadow: 0 4px 16px rgba(138, 154, 91, 0.3);
+      }
+      
+      .brand-text {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      
+      .brand-title {
+        font-family: 'Crimson Pro', Georgia, serif;
+        font-size: 1.8rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        background: linear-gradient(135deg, #f5f1ea 0%, #c4a77d 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .brand-subtitle {
+        font-size: 0.8rem;
+        color: rgba(245, 241, 234, 0.7);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        font-weight: 500;
       }
     </style>
     """,
@@ -86,6 +133,22 @@ DRIVE_FILE_ID = _require_secret("gdrive.file_id")
 ROOT_FOLDER_ID = _require_secret("gdrive.root_folder_id")
 CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
 
+
+# ---------------------------
+# Brand Header
+# ---------------------------
+st.markdown(
+    """
+    <div class="brand-header">
+        <div class="brand-logo">🦌</div>
+        <div class="brand-text">
+            <div class="brand-title">Ranch Events</div>
+            <div class="brand-subtitle">Wildlife Monitoring System</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ---------------------------
 # Load data + index images
@@ -306,7 +369,7 @@ elif st.session_state.current_view == "gallery":
         st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
 
     st.title("Advanced Gallery")
-    st.caption("grouped sightings as events")
+    st.caption("Grouped sightings as events")
 
     # Big, clean embed
     st.markdown('<div class="embed-wrap">', unsafe_allow_html=True)
