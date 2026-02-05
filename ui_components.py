@@ -388,27 +388,46 @@ def inject_css():
         overflow: hidden;
         transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         margin-bottom: 1.25rem;
+        display: flex;
+        flex-direction: column;
       }
       .sighting-card:hover {
         transform: translateY(-2px);
         box-shadow: var(--shadow-soft);
         border-color: var(--border-2);
       }
+      /* Remove all Streamlit container margins/padding inside cards */
+      .sighting-card .element-container,
+      .sighting-card > div,
+      .sighting-card [class*="st"] {
+        margin: 0 !important;
+      }
 
       .card-thumbnail {
         position: relative;
         width: 100%;
-        aspect-ratio: 16 / 11;
         background: var(--surface-2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
         overflow: hidden;
+        flex-shrink: 0;
       }
       .card-thumbnail img {
         width: 100%;
-        height: 100%;
-        object-fit: cover;
+        height: auto;
+        display: block;
+        margin: 0;
+        padding: 0;
+      }
+      /* Remove Streamlit's default image container padding */
+      .card-thumbnail > div[data-testid="stImage"],
+      .card-thumbnail > div > div[data-testid="stImage"],
+      .card-thumbnail .stImage {
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .card-thumbnail .element-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 0;
       }
 
       .card-content {
