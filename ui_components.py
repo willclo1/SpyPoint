@@ -220,463 +220,401 @@ def inject_css():
         }
         
         /* BaseWeb often reads "currentColor" on controls (radio dot etc.) */
-        div[data-testid="stRadio"], div[data-testid="stSlider"] {
+        [data-baseweb="radio"],
+        [data-baseweb="checkbox"] {
           color: #5B8FF9 !important;
         }
+        
+        /* Prevent BaseWeb's accent from leaking anywhere */
+        [class*="StyledThumb"],
+        [class*="StyledTickBar"],
+        input[type="checkbox"]:checked,
+        input[type="radio"]:checked {
+          background-color: #5B8FF9 !important;
+          border-color: #5B8FF9 !important;
+        }
 
-      /* App background */
+      /* =========================================================
+         APP SURFACES
+         ========================================================= */
       .stApp {
-        background: radial-gradient(1200px 700px at 20% -10%, rgba(91,143,249,0.18) 0%, rgba(0,0,0,0) 55%),
-                    radial-gradient(900px 600px at 90% 0%, rgba(97,221,170,0.12) 0%, rgba(0,0,0,0) 50%),
-                    var(--bg);
+        background: var(--bg);
         color: var(--text);
       }
 
-      /* Base layout */
-      .block-container {
-        padding-top: 4.2rem;
-        padding-bottom: 2.75rem;
-        max-width: 1320px;
+      /* Sidebar (slightly lighter than main) */
+      section[data-testid="stSidebar"] {
+        background: var(--surface) !important;
+        border-right: 1px solid var(--border-2);
       }
 
-      /* Header */
-      header[data-testid="stHeader"] {
-        background: rgba(11,18,32,0.65);
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(255,255,255,0.06);
+      /* Toasts (metric-like boxes) */
+      .stAlert, [data-testid="stNotification"] {
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+        color: var(--text) !important;
       }
 
-      /* Typography */
-      h1, h2, h3 {
-        letter-spacing: -0.02em;
-        font-weight: 650;
-        color: var(--text);
+      /* Metrics */
+      [data-testid="stMetricValue"] {
+        color: var(--text) !important;
+        font-weight: 600;
       }
-      .small-muted {
-        opacity: 0.78;
-        color: var(--muted);
-        font-size: 0.92rem;
-      }
-
-      /* ============================
-         NAV / TABS FIX (sticky + clickable)
-         ============================ */
-      .stTabs [data-baseweb="tab-list"] {
-        position: sticky;
-        top: var(--top-offset);
-        z-index: 999;
-        background: rgba(15,26,46,0.92);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.10);
-        border-radius: 12px;
-        padding: 0.35rem 0.35rem;
-        margin-top: 0.4rem;
-        margin-bottom: 1.0rem;
-        box-shadow: var(--shadow-soft);
-      }
-
-      .stTabs [data-baseweb="tab"] {
-        border-radius: 10px !important;
+      [data-testid="stMetricLabel"] {
         color: var(--muted) !important;
-        font-weight: 650 !important;
-        padding: 0.55rem 0.85rem !important;
       }
 
-      .stTabs [aria-selected="true"] {
+      /* Cards & containers */
+      .element-container, [data-testid="column"] {
+        border-radius: var(--radius-sm);
+      }
+
+      /* =========================================================
+         INPUT WIDGETS (override Streamlit's red defaults)
+         ========================================================= */
+
+      /* All text inputs */
+      input[type="text"],
+      input[type="number"],
+      input[type="email"],
+      textarea,
+      [data-baseweb="input"] input,
+      [data-baseweb="textarea"] textarea {
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
         color: var(--text) !important;
-        background: rgba(91,143,249,0.16) !important;
-        border: 1px solid rgba(91,143,249,0.25) !important;
+        transition: border 0.15s ease, box-shadow 0.15s ease !important;
       }
 
-      /* ============================
-         WIDGET THEME OVERRIDES (Filters)
-         Removes default Streamlit red
-         ============================ */
-
-      /* Global accent */
-      html, body, [class*="st-"] {
-        accent-color: var(--accent);
-      }
-
-      /* Focus ring */
-      :is(button, input, textarea, select, [role="slider"], [role="combobox"]):focus,
-      :is(button, input, textarea, select, [role="slider"], [role="combobox"]):focus-visible {
-        outline: none !important;
-        box-shadow: 0 0 0 3px rgba(91,143,249,0.35) !important;
-        border-color: rgba(91,143,249,0.35) !important;
-      }
-
-      /* Text / number / textarea */
-      div[data-testid="stTextInput"] input,
-      div[data-testid="stNumberInput"] input,
-      div[data-testid="stTextArea"] textarea {
-        background: rgba(255,255,255,0.03) !important;
-        color: var(--text) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 10px !important;
-      }
-      div[data-testid="stTextInput"] input:hover,
-      div[data-testid="stNumberInput"] input:hover,
-      div[data-testid="stTextArea"] textarea:hover {
-        border-color: rgba(255,255,255,0.16) !important;
-      }
-
-      /* Select / multiselect base */
-      div[data-testid="stSelectbox"] [data-baseweb="select"] > div,
-      div[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
-        background: rgba(255,255,255,0.03) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 10px !important;
-      }
-      div[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
-      div[data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover {
-        border-color: rgba(255,255,255,0.16) !important;
-      }
-
-      /* Dropdown menu surface */
-      [data-baseweb="popover"] [role="listbox"] {
-        background: rgba(15,26,46,0.98) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        border-radius: 12px !important;
-        box-shadow: var(--shadow-soft) !important;
-      }
-      [data-baseweb="popover"] [role="option"] {
-        color: var(--text) !important;
-      }
-      [data-baseweb="popover"] [role="option"][aria-selected="true"] {
-        background: rgba(91,143,249,0.16) !important;
-      }
-      [data-baseweb="popover"] [role="option"]:hover {
-        background: rgba(255,255,255,0.06) !important;
-      }
-
-      /* Radio buttons (BaseWeb) */
-      div[data-testid="stRadio"] input[type="radio"] {
-        accent-color: var(--accent) !important;
-      }
-      div[data-testid="stRadio"] [role="radio"] > div {
-        border-color: rgba(255,255,255,0.35) !important;
-      }
-      div[data-testid="stRadio"] [role="radio"][aria-checked="true"] > div {
+      input:focus,
+      textarea:focus,
+      [data-baseweb="input"] input:focus,
+      [data-baseweb="textarea"] textarea:focus {
         border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px var(--focus) !important;
+        outline: none !important;
+      }
+
+      /* Select boxes (multiselect / selectbox) */
+      [data-baseweb="select"] > div,
+      [data-baseweb="popover"] {
+        background: var(--surface-2) !important;
+        border-color: var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+      }
+      [data-baseweb="select"]:focus-within > div {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px var(--focus) !important;
+      }
+
+      /* Tags in multiselect */
+      [data-baseweb="tag"] {
         background: var(--accent) !important;
+        color: white !important;
+        border-radius: 6px !important;
       }
 
       /* Slider */
-      div[data-testid="stSlider"] [role="slider"] {
-        color: var(--accent) !important;
+      [data-baseweb="slider"] [data-testid="stThumbValue"],
+      [data-baseweb="slider"] [class*="StyledThumb"] {
+        background: var(--accent) !important;
       }
-      div[data-testid="stSlider"] [data-baseweb="slider"] > div > div {
-        background: rgba(255,255,255,0.15) !important;
-      }
-      div[data-testid="stSlider"] [data-baseweb="slider"] > div > div > div {
+      [data-baseweb="slider"] [class*="StyledTrack"] {
         background: linear-gradient(
           90deg,
-          rgba(91,143,249,0.95),
-          rgba(91,143,249,0.75)
+          var(--accent) 0%,
+          var(--border) 100%
         ) !important;
       }
 
-      /* Multiselect pills */
-      div[data-testid="stMultiSelect"] [data-baseweb="tag"] {
-        background: rgba(91,143,249,0.18) !important;
-        border: 1px solid rgba(91,143,249,0.35) !important;
-        color: var(--text) !important;
-        border-radius: 999px !important;
-      }
-      div[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
-        color: var(--text) !important;
-      }
-      div[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {
-        fill: var(--muted) !important;
-      }
-      div[data-testid="stMultiSelect"] [data-baseweb="tag"] svg:hover {
-        fill: var(--text) !important;
-      }
-
-      /* Dropdown chevrons/icons */
-      div[data-testid="stSelectbox"] svg,
-      div[data-testid="stMultiSelect"] svg {
-        fill: var(--muted) !important;
-      }
-
       /* Date input */
-      div[data-testid="stDateInput"] input {
-        background: rgba(255,255,255,0.04) !important;
-        border: 1px solid rgba(255,255,255,0.12) !important;
-        color: var(--text) !important;
-        border-radius: 10px !important;
+      [data-baseweb="calendar"] {
+        background: var(--surface) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius) !important;
+      }
+      [data-baseweb="calendar"] [aria-selected="true"] {
+        background: var(--accent) !important;
+        color: white !important;
       }
 
-      /* Checkbox */
-      div[data-testid="stCheckbox"] input[type="checkbox"] {
-        accent-color: var(--accent) !important;
+      /* Radio / Checkbox accent */
+      input[type="radio"]:checked::before,
+      input[type="checkbox"]:checked::before {
+        background: var(--accent) !important;
+      }
+      [data-baseweb="radio"] > div > div,
+      [data-baseweb="checkbox"] > div > div {
+        border-color: var(--accent) !important;
       }
 
       /* Buttons */
-      button[kind="primary"] {
-        background: linear-gradient(180deg, rgba(91,143,249,0.95), rgba(91,143,249,0.80)) !important;
-        border: 1px solid rgba(91,143,249,0.35) !important;
-        border-radius: 10px !important;
-        font-weight: 650 !important;
+      button[kind="primary"],
+      button[kind="primaryFormSubmit"] {
+        background: var(--accent) !important;
+        border: 1px solid var(--accent) !important;
+        color: white !important;
+        border-radius: var(--radius-sm) !important;
+        font-weight: 600 !important;
+        transition: all 0.15s ease !important;
       }
-      button[kind="secondary"] {
-        background: rgba(255,255,255,0.04) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
-        color: var(--text) !important;
-        border-radius: 10px !important;
-        font-weight: 650 !important;
-      }
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+      button[kind="primary"]:hover {
+        background: #4a7ad9 !important;
+        box-shadow: var(--shadow-soft) !important;
       }
 
-      /* ============================
-         SIGHTING CARD GALLERY
-         ============================ */
+      button[kind="secondary"],
+      button[kind="secondaryFormSubmit"] {
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border-2) !important;
+        color: var(--text) !important;
+        border-radius: var(--radius-sm) !important;
+        font-weight: 500 !important;
+      }
+      button[kind="secondary"]:hover {
+        background: var(--surface) !important;
+        border-color: var(--accent) !important;
+      }
+
+      /* =========================================================
+         CUSTOM CARDS (for gallery)
+         ========================================================= */
       .sighting-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-        border: 1px solid rgba(255,255,255,0.10);
-        border-radius: 14px;
-        padding: 0;
-        transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
-        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
         overflow: hidden;
-        box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        margin-bottom: 1.25rem;
       }
       .sighting-card:hover {
         transform: translateY(-2px);
-        border-color: rgba(255,255,255,0.18);
-        box-shadow: 0 18px 46px rgba(0,0,0,0.32);
+        box-shadow: var(--shadow-soft);
+        border-color: var(--border-2);
       }
 
       .card-thumbnail {
+        position: relative;
         width: 100%;
-        height: 170px;
-        background: rgba(0,0,0,0.35);
-        margin-bottom: 0;
+        aspect-ratio: 16 / 11;
+        background: var(--surface-2);
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        position: relative;
       }
       .card-thumbnail img {
         width: 100%;
         height: 100%;
         object-fit: cover;
       }
-      .card-thumbnail::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.40) 100%);
-        pointer-events: none;
-      }
 
       .card-content {
-        padding: 0.95rem 0.95rem 0.9rem;
+        padding: 1rem 1.1rem 1.1rem;
       }
       .card-title {
-        font-size: 1.02rem;
-        font-weight: 750;
-        margin-bottom: 0.35rem;
-        line-height: 1.25;
+        font-size: 0.95rem;
+        font-weight: 650;
         color: var(--text);
+        margin-bottom: 0.35rem;
+        line-height: 1.3;
       }
       .card-meta {
-        font-size: 0.88rem;
+        font-size: 0.825rem;
         color: var(--muted);
         margin-bottom: 0.25rem;
       }
       .card-temp {
-        font-size: 0.88rem;
+        display: inline-block;
+        font-size: 0.775rem;
         color: var(--muted-2);
+        background: var(--surface-2);
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        margin-top: 0.35rem;
       }
-
-      a {
-        color: rgba(91,143,249,0.95);
-        text-decoration: none;
+      .card-moon {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.825rem;
+        color: var(--muted);
+        background: var(--surface-2);
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        margin-top: 0.35rem;
+        margin-left: 0.35rem;
       }
-      a:hover { text-decoration: underline; }
 
       .load-more-btn {
         text-align: center;
-        margin-top: 1.25rem;
+        margin-top: 1.5rem;
       }
 
-      /* Chart styling */
-      .vega-embed { padding: 0 !important; }
+      /* =========================================================
+         MISC FIXES
+         ========================================================= */
+      .small-muted {
+        font-size: 0.8rem;
+        color: var(--muted-2);
+      }
 
-    
+      hr {
+        border-color: var(--border) !important;
+        margin: 1.75rem 0 !important;
+      }
+
+      /* Markdown tables */
+      table {
+        border-collapse: collapse;
+        background: var(--surface-2);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+      }
+      th, td {
+        border: 1px solid var(--border);
+        padding: 0.5rem 0.75rem;
+      }
+      th {
+        background: var(--surface);
+        font-weight: 600;
+      }
+
+      /* Code blocks */
+      code {
+        background: var(--surface-2) !important;
+        color: var(--accent-2) !important;
+        padding: 0.15rem 0.4rem !important;
+        border-radius: 4px !important;
+      }
+      pre {
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+        padding: 1rem !important;
+      }
     </style>
-    """
-
-    css = (
-        css.replace("__BG__", PALETTE["bg"])
-        .replace("__SURFACE__", PALETTE["surface"])
-        .replace("__SURFACE_2__", PALETTE["surface_2"])
-        .replace("__BORDER__", PALETTE["border"])
-        .replace("__BORDER_2__", PALETTE["border_2"])
-        .replace("__TEXT__", PALETTE["text"])
-        .replace("__MUTED__", PALETTE["muted"])
-        .replace("__MUTED_2__", PALETTE["muted_2"])
-        .replace("__ACCENT__", PALETTE["primary"])
-        .replace("__ACCENT_2__", PALETTE["secondary"])
-    )
+    """.replace("__BG__", PALETTE["bg"]) \
+       .replace("__SURFACE__", PALETTE["surface"]) \
+       .replace("__SURFACE_2__", PALETTE["surface_2"]) \
+       .replace("__BORDER__", PALETTE["border"]) \
+       .replace("__BORDER_2__", PALETTE["border_2"]) \
+       .replace("__TEXT__", PALETTE["text"]) \
+       .replace("__MUTED__", PALETTE["muted"]) \
+       .replace("__MUTED_2__", PALETTE["muted_2"]) \
+       .replace("__ACCENT__", PALETTE["primary"]) \
+       .replace("__ACCENT_2__", PALETTE["secondary"])
 
     st.markdown(css, unsafe_allow_html=True)
 
 
 # =============================================================================
-# Charts
+# Timeline
 # =============================================================================
 
 def render_timeline(base: pd.DataFrame, section: str):
-    st.subheader("Timeline")
-    st.caption("Each dot represents one sighting")
+    st.markdown("### Activity Timeline")
 
-    chart_df = base.dropna(subset=["datetime", "temp_f"]).copy()
-    if chart_df.empty:
-        st.info("No temperature data available for timeline visualization")
-        return
+    time_df = base.groupby(base["datetime"].dt.date).size().reset_index()
+    time_df.columns = ["date", "count"]
+    time_df["date"] = pd.to_datetime(time_df["date"])
 
-    if section == "Wildlife":
-        counts = chart_df.groupby("wildlife_label").size().sort_values(ascending=False)
-        top = counts.head(10).index.tolist()
+    min_date = time_df["date"].min()
+    max_date = time_df["date"].max()
 
-        chart_df["wildlife_group_chart"] = chart_df["wildlife_label"].where(
-            chart_df["wildlife_label"].isin(top),
-            other="Other",
-        )
-
-        domain, color_range = stable_color_domain(
-            chart_df["wildlife_group_chart"].unique().tolist(),
-            WILDLIFE_PALETTE,
-            pin_other_gray=True,
-        )
-
-        color_enc = alt.Color(
-            "wildlife_group_chart:N",
-            title="Animal",
-            scale=alt.Scale(domain=domain, range=color_range),
-        )
-
-        tooltip = [
-            alt.Tooltip("datetime:T", title="Time"),
-            alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
-            alt.Tooltip("wildlife_label:N", title="Animal"),
-            alt.Tooltip("camera:N", title="Camera"),
-        ]
+    temp_series = base["temp_f"].dropna()
+    if not temp_series.empty:
+        temp_lo, temp_hi = clamp_temp_domain(temp_series.min(), temp_series.max())
     else:
-        chart_df["type_label"] = section.lower()
-        color = SECTION_COLORS.get(section.lower(), SECTION_COLORS["wildlife"])
-        color_enc = alt.Color("type_label:N", legend=None, scale=alt.Scale(range=[color]))
+        temp_lo, temp_hi = 10, 90
 
-        tooltip = [
-            alt.Tooltip("datetime:T", title="Time"),
-            alt.Tooltip("temp_f:Q", title="Temperature", format=".0f"),
-            alt.Tooltip("camera:N", title="Camera"),
-        ]
+    color_val = SECTION_COLORS.get(section.lower(), PALETTE["info"])
 
-    y_lo, y_hi = clamp_temp_domain(chart_df["temp_f"].min(), chart_df["temp_f"].max())
-
-    scatter = (
-        alt.Chart(chart_df)
-        .mark_circle(size=200, opacity=0.60, stroke="rgba(255,255,255,0.45)", strokeWidth=0.6)
+    base_line = (
+        alt.Chart(time_df)
+        .mark_line(point=True, strokeWidth=2.5, color=color_val)
         .encode(
-            x=alt.X("datetime:T", title="Date & Time"),
-            y=alt.Y("temp_f:Q", title="Temperature (°F)", scale=alt.Scale(domain=[y_lo, y_hi])),
-            color=color_enc,
-            tooltip=tooltip,
+            x=alt.X("date:T", title="Date", scale=alt.Scale(domain=[min_date, max_date])),
+            y=alt.Y("count:Q", title="Sightings"),
+            tooltip=[
+                alt.Tooltip("date:T", title="Date", format="%b %d, %Y"),
+                alt.Tooltip("count:Q", title="Count"),
+            ],
         )
-        .properties(height=320)
-        .interactive()
     )
 
-    st.altair_chart(apply_chart_theme(scatter), use_container_width=True)
+    temp_valid = base.dropna(subset=["temp_f"]).copy()
+    if not temp_valid.empty:
+        temp_agg = temp_valid.groupby(temp_valid["datetime"].dt.date)["temp_f"].mean().reset_index()
+        temp_agg.columns = ["date", "avg_temp"]
+        temp_agg["date"] = pd.to_datetime(temp_agg["date"])
 
+        temp_line = (
+            alt.Chart(temp_agg)
+            .mark_line(strokeDash=[5, 5], strokeWidth=1.8, color=PALETTE["warning"], opacity=0.7)
+            .encode(
+                x=alt.X("date:T", title=None),
+                y=alt.Y("avg_temp:Q", title="Avg Temp (°F)", scale=alt.Scale(domain=[temp_lo, temp_hi])),
+                tooltip=[
+                    alt.Tooltip("date:T", title="Date", format="%b %d, %Y"),
+                    alt.Tooltip("avg_temp:Q", title="Avg Temp", format=".1f"),
+                ],
+            )
+        )
+
+        combined = alt.layer(base_line, temp_line).resolve_scale(y="independent").properties(height=280)
+    else:
+        combined = base_line.properties(height=280)
+
+    st.altair_chart(apply_chart_theme(combined), use_container_width=True)
+
+
+# =============================================================================
+# Patterns (time-of-day, day-of-week, moon phase)
+# =============================================================================
 
 def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_style: str, time_gran: str):
-    st.subheader("Activity Patterns")
+    st.markdown("### Activity Patterns")
 
-    patt = base.dropna(subset=["datetime"]).copy()
-    patt["weekday"] = patt["datetime"].dt.day_name()
-    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
+    patt = base.copy()
     patt["hour"] = patt["datetime"].dt.hour
+    patt["weekday"] = patt["datetime"].dt.day_name()
+
+    # Time granularity bins
     if time_gran == "2-hour":
         patt["time_bin"] = (patt["hour"] // 2) * 2
-        patt["time_label"] = patt["time_bin"].astype(int).astype(str) + ":00"
+        patt["time_label"] = patt["time_bin"].apply(lambda x: f"{x:02d}–{x+2:02d}")
     elif time_gran == "4-hour":
         patt["time_bin"] = (patt["hour"] // 4) * 4
-        patt["time_label"] = patt["time_bin"].astype(int).astype(str) + ":00"
+        patt["time_label"] = patt["time_bin"].apply(lambda x: f"{x:02d}–{x+4:02d}")
     else:
-        patt["time_label"] = patt["hour"].astype(int).astype(str) + ":00"
+        patt["time_bin"] = patt["hour"]
+        patt["time_label"] = patt["hour"].apply(lambda x: f"{x:02d}:00")
 
-    # People / Vehicles
-    if section != "Wildlife":
-        chart_color = SECTION_COLORS.get(section.lower(), SECTION_COLORS["wildlife"])
+    weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    time_order = sorted(patt["time_label"].unique())
 
-        by_time = patt.groupby("time_label").size().reset_index(name="Sightings")
-        by_time["__h"] = by_time["time_label"].str.split(":").str[0].astype(int)
-        by_time = by_time.sort_values("__h")
+    if section == "Wildlife":
+        if not include_other:
+            patt = patt[patt["wildlife_label"] != "Other"]
+        patt["animal_group"] = patt["wildlife_label"]
+    elif section == "People":
+        patt["animal_group"] = "Human"
+    else:
+        patt["animal_group"] = "Vehicle"
 
-        time_chart = (
-            alt.Chart(by_time)
-            .mark_bar(color=chart_color, opacity=0.88, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
-            .encode(
-                x=alt.X("time_label:N", title="Time of Day", sort=by_time["time_label"].tolist(), axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Sightings:Q", title="Count"),
-                tooltip=[alt.Tooltip("time_label:N", title="Time"), alt.Tooltip("Sightings:Q", title="Count")],
-            )
-            .properties(height=250)
-        )
-
-        by_day = patt.groupby("weekday").size().reindex(weekday_order, fill_value=0).reset_index(name="Sightings")
-        by_day.columns = ["weekday", "Sightings"]
-
-        day_chart = (
-            alt.Chart(by_day)
-            .mark_bar(color=chart_color, opacity=0.88, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
-            .encode(
-                y=alt.Y("weekday:N", title="Day of Week", sort=weekday_order),
-                x=alt.X("Sightings:Q", title="Count"),
-                tooltip=[alt.Tooltip("weekday:N", title="Day"), alt.Tooltip("Sightings:Q", title="Count")],
-            )
-            .properties(height=250)
-        )
-
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**By Time of Day**")
-            st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
-        with cB:
-            st.markdown("**By Day of Week**")
-            st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
-        return
-
-    # Wildlife
-    if not include_other:
-        patt = patt[patt["wildlife_label"] != "Other"]
-
-    sp_counts = patt.groupby("wildlife_label").size().sort_values(ascending=False)
-    top_species = sp_counts.head(8).index.tolist()
-    patt["animal_group"] = patt["wildlife_label"].where(patt["wildlife_label"].isin(top_species), other="Other")
+    domain, color_range = stable_color_domain(patt["animal_group"].unique().tolist(), WILDLIFE_PALETTE)
+    color_enc = alt.Color(
+        "animal_group:N",
+        scale=alt.Scale(domain=domain, range=color_range),
+        legend=alt.Legend(title=section if section == "Wildlife" else "Type"),
+    )
 
     by_time = patt.groupby(["time_label", "animal_group"]).size().reset_index(name="Sightings")
-
-    def _time_sort_key(x: str) -> int:
-        try:
-            return int(x.split(":")[0])
-        except Exception:
-            return 0
-
-    time_order = sorted(by_time["time_label"].unique().tolist(), key=_time_sort_key)
-
-    domain_w, range_w = stable_color_domain(by_time["animal_group"].unique().tolist(), WILDLIFE_PALETTE, pin_other_gray=True)
-    color_enc = alt.Color("animal_group:N", title="Animal", scale=alt.Scale(domain=domain_w, range=range_w))
+    by_time["time_label"] = pd.Categorical(by_time["time_label"], categories=time_order, ordered=True)
+    by_time = by_time.sort_values(["time_label", "animal_group"])
 
     if bar_style == "Grouped":
         time_chart = (
@@ -750,13 +688,73 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             .properties(height=250)
         )
 
-    cA, cB = st.columns(2)
-    with cA:
-        st.markdown("**By Time of Day**")
-        st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
-    with cB:
-        st.markdown("**By Day of Week**")
-        st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+    # Moon phase chart
+    moon_valid = patt[patt["moon_phase_clean"] != ""].copy()
+    if not moon_valid.empty:
+        # Define moon phase order
+        moon_order = [
+            "New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous",
+            "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"
+        ]
+        
+        by_moon = moon_valid.groupby(["moon_phase_clean", "animal_group"]).size().reset_index(name="Sightings")
+        by_moon["moon_phase_clean"] = pd.Categorical(by_moon["moon_phase_clean"], categories=moon_order, ordered=True)
+        by_moon = by_moon.sort_values(["moon_phase_clean", "animal_group"])
+
+        if bar_style == "Grouped":
+            moon_chart = (
+                alt.Chart(by_moon)
+                .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                .encode(
+                    y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
+                    x=alt.X("Sightings:Q", title="Count"),
+                    color=color_enc,
+                    yOffset="animal_group:N",
+                    tooltip=[
+                        alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
+                        alt.Tooltip("animal_group:N", title="Animal"),
+                        alt.Tooltip("Sightings:Q", title="Count"),
+                    ],
+                )
+                .properties(height=250)
+            )
+        else:
+            moon_chart = (
+                alt.Chart(by_moon)
+                .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                .encode(
+                    y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
+                    x=alt.X("Sightings:Q", title="Count"),
+                    color=color_enc,
+                    tooltip=[
+                        alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
+                        alt.Tooltip("animal_group:N", title="Animal"),
+                        alt.Tooltip("Sightings:Q", title="Count"),
+                    ],
+                )
+                .properties(height=250)
+            )
+
+        # Render all three charts
+        cA, cB = st.columns(2)
+        with cA:
+            st.markdown("**By Time of Day**")
+            st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+        with cB:
+            st.markdown("**By Day of Week**")
+            st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+        
+        st.markdown("**By Moon Phase**")
+        st.altair_chart(apply_chart_theme(moon_chart), use_container_width=True)
+    else:
+        # No moon data - just show time and day
+        cA, cB = st.columns(2)
+        with cA:
+            st.markdown("**By Time of Day**")
+            st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+        with cB:
+            st.markdown("**By Day of Week**")
+            st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
 
 
 # =============================================================================
@@ -851,6 +849,8 @@ def render_listing_and_viewer(
             fn = str(row.get("filename", "")).strip()
             dt = row.get("datetime")
             temp = row.get("temp_f")
+            moon_emoji = row.get("moon_emoji", "")
+            moon_phase = row.get("moon_phase_clean", "")
 
             if section == "Wildlife":
                 label = row.get("wildlife_label", "Other")
@@ -885,8 +885,16 @@ def render_listing_and_viewer(
                 st.markdown('<div class="card-content">', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
-                if temp_str:
-                    st.markdown(f'<div class="card-temp">{temp_str}</div>', unsafe_allow_html=True)
+                
+                # Temperature and moon phase on same line
+                if temp_str or moon_phase:
+                    meta_line = '<div style="margin-top: 0.35rem;">'
+                    if temp_str:
+                        meta_line += f'<span class="card-temp">{temp_str}</span>'
+                    if moon_phase and moon_emoji:
+                        meta_line += f'<span class="card-moon">{moon_emoji} {moon_phase}</span>'
+                    meta_line += '</div>'
+                    st.markdown(meta_line, unsafe_allow_html=True)
 
                 if url:
                     st.markdown(

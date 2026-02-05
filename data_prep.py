@@ -63,16 +63,69 @@ def make_friendly_name(row) -> str:
     return f"{when} • {cam} • {label} • {suffix}"
 
 
+def get_moon_emoji(phase: str) -> str:
+    """Return emoji for moon phase"""
+    if pd.isna(phase):
+        return ""
+    
+    phase = str(phase).strip().lower()
+    
+    moon_map = {
+        "new moon": "🌑",
+        "new": "🌑",
+        "waxing crescent": "🌒",
+        "first quarter": "🌓",
+        "waxing gibbous": "🌔",
+        "full moon": "🌕",
+        "full": "🌕",
+        "waning gibbous": "🌖",
+        "last quarter": "🌗",
+        "third quarter": "🌗",
+        "waning crescent": "🌘",
+    }
+    
+    return moon_map.get(phase, "🌙")
+
+
+def standardize_moon_phase(phase: str) -> str:
+    """Standardize moon phase naming for consistency"""
+    if pd.isna(phase):
+        return ""
+    
+    phase_lower = str(phase).strip().lower()
+    
+    # Map common variations to standard names
+    phase_map = {
+        "new moon": "New Moon",
+        "new": "New Moon",
+        "waxing crescent": "Waxing Crescent",
+        "first quarter": "First Quarter",
+        "waxing gibbous": "Waxing Gibbous",
+        "full moon": "Full Moon",
+        "full": "Full Moon",
+        "waning gibbous": "Waning Gibbous",
+        "last quarter": "Last Quarter",
+        "third quarter": "Last Quarter",
+        "waning crescent": "Waning Crescent",
+    }
+    
+    return phase_map.get(phase_lower, str(phase).strip().title())
+
+
 def prep_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Trust pipeline columns:
       - event_type
       - species_clean
       - species_group
+      - moon_phase (NEW)
+      - moon_illumination (NEW)
+      - moon_age_days (NEW)
     """
     out = df.copy()
 
-    for col in ["camera", "filename", "event_type", "species_clean", "species_group", "date", "time", "temp_f"]:
+    for col in ["camera", "filename", "event_type", "species_clean", "species_group", 
+                "date", "time", "temp_f", "moon_phase", "moon_illumination", "moon_age_days"]:
         if col not in out.columns:
             out[col] = ""
 
@@ -94,6 +147,13 @@ def prep_df(df: pd.DataFrame) -> pd.DataFrame:
     out["wildlife_label"] = out["species_group"]
     out.loc[out["wildlife_label"] == "", "wildlife_label"] = out["species_clean"]
     out.loc[out["wildlife_label"] == "", "wildlife_label"] = "Other"
+
+    # Process moon phase data
+    out["moon_phase"] = out["moon_phase"].fillna("").astype(str).str.strip()
+    out["moon_phase_clean"] = out["moon_phase"].apply(standardize_moon_phase)
+    out["moon_emoji"] = out["moon_phase"].apply(get_moon_emoji)
+    out["moon_illumination"] = pd.to_numeric(out["moon_illumination"], errors="coerce")
+    out["moon_age_days"] = pd.to_numeric(out["moon_age_days"], errors="coerce")
 
     out["event_id"] = out.apply(make_event_id, axis=1)
     out["friendly_name"] = out.apply(make_friendly_name, axis=1)

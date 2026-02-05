@@ -201,6 +201,17 @@ if st.session_state.current_view == "dashboard":
                 key="dash_temp",
             )
 
+        # Moon phase filter
+        moon_phases = sorted([p for p in df["moon_phase_clean"].unique().tolist() if p])
+        selected_moon_phases = []
+        if moon_phases:
+            selected_moon_phases = st.multiselect(
+                "🌙 Moon Phases",
+                options=moon_phases,
+                default=[],
+                key="dash_moon_phases",
+            )
+
         # Wildlife-only filters
         species_filter = []
         include_other = False
@@ -249,6 +260,9 @@ if st.session_state.current_view == "dashboard":
         lo, hi = temp_range
         base = base[base["temp_f"].notna()]
         base = base[(base["temp_f"] >= lo) & (base["temp_f"] <= hi)]
+
+    if selected_moon_phases:
+        base = base[base["moon_phase_clean"].isin(selected_moon_phases)]
 
     if section == "Wildlife" and species_filter:
         base = base[base["wildlife_label"].isin(species_filter)]
@@ -365,21 +379,34 @@ else:  # photos view
                     key="photo_temp",
                 )
 
+    # Moon phase filter for photos
+    moon_phases_photos = sorted([p for p in df["moon_phase_clean"].unique().tolist() if p])
+    selected_moon_phases_photos = []
+    if moon_phases_photos:
+        with filter_col5:
+            selected_moon_phases_photos = st.multiselect(
+                "🌙 Moon Phases",
+                options=moon_phases_photos,
+                default=[],
+                key="photo_moon_phases",
+            )
+
     # Wildlife-specific filters
     species_filter_photos = []
     include_other_photos = False
 
     if section_photos == "Wildlife":
-        with filter_col5:
+        with filter_col6:
             include_other_photos = st.checkbox("Include 'Other'", value=False, key="photo_include_other")
 
+        filter_col7, _ = st.columns([1, 2])
         wild_pool_photos = df[df["event_type"] == "animal"].copy()
         if not include_other_photos:
             wild_pool_photos = wild_pool_photos[wild_pool_photos["wildlife_label"] != "Other"]
 
         sp_opts_photos = sorted([s for s in wild_pool_photos["wildlife_label"].unique().tolist() if s])
         if sp_opts_photos:
-            with filter_col6:
+            with filter_col7:
                 species_filter_photos = st.multiselect(
                     "Animals",
                     options=sp_opts_photos,
@@ -413,6 +440,9 @@ else:  # photos view
         lo_photos, hi_photos = temp_range_photos
         base_photos = base_photos[base_photos["temp_f"].notna()]
         base_photos = base_photos[(base_photos["temp_f"] >= lo_photos) & (base_photos["temp_f"] <= hi_photos)]
+
+    if selected_moon_phases_photos:
+        base_photos = base_photos[base_photos["moon_phase_clean"].isin(selected_moon_phases_photos)]
 
     if section_photos == "Wildlife" and species_filter_photos:
         base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
