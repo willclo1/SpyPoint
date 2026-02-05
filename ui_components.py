@@ -12,11 +12,11 @@ from drive_io import resolve_image_link
 
 
 # =============================================================================
-# Design System - Ranch Wildlife Theme (Earth Tones)
+# Design System - Exact Ranch Wildlife Theme
 # =============================================================================
 
 PALETTE = {
-    # Earth-tone palette inspired by ranch landscapes
+    # Exact earth-tone palette from website
     "earth_dark": "#1a1612",
     "earth_charcoal": "#2d2520",
     "earth_brown": "#3d332c",
@@ -25,13 +25,13 @@ PALETTE = {
     "earth_sand": "#c4a77d",
     "earth_cream": "#e8d5b7",
     
-    # Accent colors from nature
+    # Nature accent colors from website
     "sage": "#8a9a5b",
     "forest": "#4a5d3f",
     "sunset": "#d97642",
     "sky": "#7ea8be",
     
-    # UI colors
+    # UI colors - exact from website
     "text_primary": "#f5f1ea",
     "text_muted": "rgba(245, 241, 234, 0.7)",
     "text_dim": "rgba(245, 241, 234, 0.45)",
@@ -39,19 +39,19 @@ PALETTE = {
     "border_strong": "rgba(245, 241, 234, 0.22)",
     
     # Semantic colors
-    "success": "#8a9a5b",  # sage
-    "info": "#7ea8be",     # sky
-    "warning": "#d97642",  # sunset
+    "success": "#8a9a5b",
+    "info": "#7ea8be",
+    "warning": "#d97642",
     "neutral": "#94A3B8",
 }
 
-# Distinct but earthy categorical palette for wildlife
+# Wildlife colors - vibrant but earthy
 WILDLIFE_PALETTE = [
     "#8a9a5b",  # sage
     "#d97642",  # sunset
     "#7ea8be",  # sky
-    "#4a5d3f",  # forest
     "#c4a77d",  # sand
+    "#4a5d3f",  # forest
     "#8b7355",  # tan
     "#4E79A7",  # blue
     "#E15759",  # red
@@ -73,11 +73,7 @@ SECTION_COLORS = {
 
 
 def stable_color_domain(values: List[str], palette: List[str], *, pin_other_gray: bool = True) -> Tuple[List[str], List[str]]:
-    """
-    Stable category -> color mapping.
-    Sorting ensures repeatability across reruns.
-    Optionally pins 'Other' to a neutral gray so it doesn't compete.
-    """
+    """Stable category -> color mapping."""
     cleaned = []
     for v in values:
         if v is None:
@@ -100,7 +96,7 @@ def stable_color_domain(values: List[str], palette: List[str], *, pin_other_gray
 
 
 def _altair_theme():
-    """Altair theme with ranch earth-tone styling."""
+    """Altair theme matching website exactly."""
     return {
         "config": {
             "background": "transparent",
@@ -113,25 +109,26 @@ def _altair_theme():
                 "tickColor": "rgba(245, 241, 234, 0.10)",
                 "domainColor": "rgba(245, 241, 234, 0.12)",
                 "labelFontSize": 12,
-                "titleFontSize": 12,
-                "titleFontWeight": 500,
-                "labelPadding": 6,
-                "titlePadding": 10,
+                "titleFontSize": 13,
+                "titleFontWeight": 600,
+                "labelPadding": 8,
+                "titlePadding": 12,
             },
             "legend": {
                 "labelColor": PALETTE["text_muted"],
-                "titleColor": PALETTE["text_muted"],
+                "titleColor": PALETTE["text_primary"],
                 "labelFontSize": 12,
-                "titleFontSize": 12,
-                "titleFontWeight": 600,
+                "titleFontSize": 13,
+                "titleFontWeight": 700,
                 "symbolType": "circle",
-                "symbolSize": 90,
-                "padding": 8,
+                "symbolSize": 100,
+                "padding": 10,
+                "orient": "top",
             },
             "title": {
                 "color": PALETTE["text_primary"],
-                "fontSize": 14,
-                "fontWeight": 600,
+                "fontSize": 16,
+                "fontWeight": 700,
                 "anchor": "start",
                 "font": "'Crimson Pro', Georgia, serif",
             },
@@ -148,11 +145,11 @@ alt.themes.enable("ranch_theme")
 
 
 def apply_chart_theme(chart: alt.Chart) -> alt.Chart:
-    """Extra per-chart polish: consistent padding, axes, etc."""
+    """Polish charts to match website."""
     return (
         chart
         .configure_view(strokeOpacity=0)
-        .configure_axis(grid=True)
+        .configure_axis(grid=True, gridOpacity=0.4)
         .configure_axisX(labelAngle=0)
     )
 
@@ -163,7 +160,7 @@ def apply_chart_theme(chart: alt.Chart) -> alt.Chart:
 
 @st.cache_data(ttl=3600)
 def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_func):
-    """Cache thumbnail downloads to avoid repeated API calls."""
+    """Cache thumbnail downloads."""
     try:
         service = _drive_client_factory()
         img_bytes = _download_bytes_func(service, file_id)
@@ -173,18 +170,18 @@ def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_f
 
 
 # =============================================================================
-# CSS / Layout - Ranch Wildlife Theme
+# CSS / Layout - EXACT Website Match
 # =============================================================================
 
 def inject_css():
-    """Ranch wildlife monitoring UI theme with earth tones."""
+    """Exact ranch wildlife theme from website."""
     st.markdown(
         """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700;900&family=DM+Sans:wght@400;500;700&display=swap');
         
         :root {
-            /* Earth-tone palette */
+            /* Exact earth-tone palette from website */
             --earth-dark: #1a1612;
             --earth-charcoal: #2d2520;
             --earth-brown: #3d332c;
@@ -193,20 +190,20 @@ def inject_css():
             --earth-sand: #c4a77d;
             --earth-cream: #e8d5b7;
             
-            /* Nature accents */
+            /* Nature accents from website */
             --sage: #8a9a5b;
             --forest: #4a5d3f;
             --sunset: #d97642;
             --sky: #7ea8be;
             
-            /* UI colors */
+            /* UI colors from website */
             --text-primary: #f5f1ea;
             --text-muted: rgba(245, 241, 234, 0.7);
             --text-dim: rgba(245, 241, 234, 0.45);
             --border: rgba(245, 241, 234, 0.12);
             --border-strong: rgba(245, 241, 234, 0.22);
             
-            /* Effects */
+            /* Effects from website */
             --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.3);
             --shadow-strong: 0 8px 40px rgba(0, 0, 0, 0.5);
             --radius: 16px;
@@ -214,141 +211,240 @@ def inject_css():
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        /* Main app background */
+        /* EXACT background from website */
         .stApp {
-            background: radial-gradient(ellipse 1200px 800px at 15% -5%, rgba(138, 154, 91, 0.08), transparent 70%),
-                        radial-gradient(ellipse 900px 600px at 85% 10%, rgba(217, 118, 66, 0.06), transparent 60%),
-                        linear-gradient(180deg, var(--earth-dark) 0%, var(--earth-charcoal) 100%) !important;
+            background: 
+                radial-gradient(ellipse 1200px 800px at 15% -5%, rgba(138, 154, 91, 0.08), transparent 70%),
+                radial-gradient(ellipse 900px 600px at 85% 10%, rgba(217, 118, 66, 0.06), transparent 60%),
+                linear-gradient(180deg, #1a1612 0%, #2d2520 100%) !important;
             font-family: 'DM Sans', -apple-system, system-ui, sans-serif !important;
             color: var(--text-primary) !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
-        /* Headers with Crimson Pro */
-        h1, h2, h3 {
+        /* Main content area background */
+        .main .block-container {
+            background: transparent !important;
+            padding-top: 2rem !important;
+        }
+        
+        /* Headers - Crimson Pro like website */
+        h1, h2, h3, h4, h5, h6 {
             font-family: 'Crimson Pro', Georgia, serif !important;
             color: var(--text-primary) !important;
             letter-spacing: -0.02em !important;
+            font-weight: 700 !important;
         }
         
         h1 {
             font-weight: 900 !important;
+            font-size: 2.5rem !important;
             background: linear-gradient(135deg, var(--text-primary) 0%, var(--earth-sand) 100%);
             -webkit-background-clip: text !important;
             -webkit-text-fill-color: transparent !important;
             background-clip: text !important;
+            margin-bottom: 0.5rem !important;
         }
         
         h2 {
-            font-weight: 700 !important;
-            font-size: 1.6rem !important;
+            font-size: 1.8rem !important;
+            color: var(--earth-cream) !important;
         }
         
         h3 {
-            font-weight: 600 !important;
-            font-size: 1.3rem !important;
+            font-size: 1.4rem !important;
+            font-weight: 700 !important;
         }
         
-        /* Buttons */
+        /* Body text */
+        p, span, div, label {
+            font-family: 'DM Sans', sans-serif !important;
+        }
+        
+        /* Buttons - EXACT website style */
         .stButton > button {
-            background: linear-gradient(145deg, rgba(138, 154, 91, 0.2) 0%, rgba(74, 93, 63, 0.3) 100%) !important;
+            background: linear-gradient(145deg, rgba(61, 51, 44, 0.6) 0%, rgba(45, 37, 32, 0.8) 100%) !important;
             border: 1px solid var(--border-strong) !important;
             border-radius: var(--radius) !important;
             color: var(--text-primary) !important;
             font-weight: 600 !important;
             transition: var(--transition) !important;
             box-shadow: var(--shadow-soft) !important;
+            padding: 0.75rem 1.5rem !important;
+            font-size: 1rem !important;
+            position: relative;
+        }
+        
+        .stButton > button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--sage) 0%, var(--sunset) 50%, var(--sky) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            border-radius: var(--radius) var(--radius) 0 0;
         }
         
         .stButton > button:hover {
-            background: linear-gradient(145deg, rgba(138, 154, 91, 0.35) 0%, rgba(74, 93, 63, 0.45) 100%) !important;
-            border-color: var(--sage) !important;
-            transform: translateY(-2px) !important;
+            background: linear-gradient(145deg, rgba(61, 51, 44, 0.8) 0%, rgba(45, 37, 32, 1) 100%) !important;
+            border-color: var(--earth-tan) !important;
+            transform: translateY(-4px) !important;
             box-shadow: var(--shadow-strong) !important;
         }
         
-        /* Primary buttons */
+        .stButton > button:hover::before {
+            opacity: 1;
+        }
+        
+        /* Primary buttons - sage/forest gradient */
         .stButton > button[kind="primary"],
         .stButton > button[data-baseweb="button"][kind="primary"] {
             background: linear-gradient(135deg, var(--sage) 0%, var(--forest) 100%) !important;
             border: 1px solid rgba(138, 154, 91, 0.5) !important;
             color: var(--text-primary) !important;
             box-shadow: 0 4px 16px rgba(138, 154, 91, 0.3) !important;
+            font-weight: 700 !important;
         }
         
         .stButton > button[kind="primary"]:hover {
             background: linear-gradient(135deg, #9bb16c 0%, #5a6e4f 100%) !important;
-            box-shadow: 0 6px 24px rgba(138, 154, 91, 0.4) !important;
+            box-shadow: 0 6px 24px rgba(138, 154, 91, 0.45) !important;
+            transform: translateY(-2px) scale(1.02) !important;
         }
         
-        /* Metrics */
+        /* Metrics - website style */
         [data-testid="stMetricValue"] {
             font-family: 'Crimson Pro', Georgia, serif !important;
-            font-size: 2rem !important;
+            font-size: 2.2rem !important;
             font-weight: 700 !important;
             color: var(--sage) !important;
+            line-height: 1 !important;
         }
         
         [data-testid="stMetricLabel"] {
-            font-size: 0.9rem !important;
-            color: var(--text-muted) !important;
+            font-size: 0.75rem !important;
+            color: var(--text-dim) !important;
             text-transform: uppercase !important;
             letter-spacing: 0.1em !important;
             font-weight: 600 !important;
+            margin-bottom: 0.5rem !important;
         }
         
-        /* Input widgets */
-        .stSelectbox, .stMultiSelect, .stDateInput, .stSlider {
-            font-family: 'DM Sans', sans-serif !important;
-        }
-        
-        .stSelectbox > div > div,
-        .stMultiSelect > div > div,
-        .stDateInput > div > div {
+        div[data-testid="stMetric"] {
             background: rgba(61, 51, 44, 0.4) !important;
             border: 1px solid var(--border) !important;
             border-radius: 12px !important;
+            padding: 1rem 1.25rem !important;
+            transition: var(--transition) !important;
+        }
+        
+        div[data-testid="stMetric"]:hover {
+            background: rgba(61, 51, 44, 0.6) !important;
+            border-color: var(--border-strong) !important;
+            transform: translateY(-2px) !important;
+        }
+        
+        /* Input widgets - earth tones */
+        .stSelectbox > div > div,
+        .stMultiSelect > div > div,
+        .stDateInput > div > div > div,
+        .stTextInput > div > div,
+        .stNumberInput > div > div {
+            background: rgba(61, 51, 44, 0.5) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
             color: var(--text-primary) !important;
+            transition: var(--transition) !important;
         }
         
         .stSelectbox > div > div:hover,
-        .stMultiSelect > div > div:hover {
+        .stMultiSelect > div > div:hover,
+        .stDateInput > div > div > div:hover {
             border-color: var(--border-strong) !important;
-            background: rgba(61, 51, 44, 0.6) !important;
+            background: rgba(61, 51, 44, 0.7) !important;
         }
         
-        /* Slider */
-        .stSlider > div > div > div {
-            background: var(--sage) !important;
+        .stSelectbox > div > div:focus-within,
+        .stMultiSelect > div > div:focus-within {
+            border-color: var(--sage) !important;
+            box-shadow: 0 0 0 2px rgba(138, 154, 91, 0.2) !important;
         }
         
-        /* Tabs */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 1rem;
+        /* Dropdown menus */
+        [data-baseweb="popover"] {
+            background: rgba(45, 37, 32, 0.98) !important;
+            border: 1px solid var(--border-strong) !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(20px) !important;
+        }
+        
+        [data-baseweb="menu"] {
             background: transparent !important;
         }
         
-        .stTabs [data-baseweb="tab"] {
-            background: rgba(61, 51, 44, 0.4) !important;
-            border: 1px solid var(--border) !important;
+        /* Radio buttons */
+        .stRadio > div {
+            background: rgba(61, 51, 44, 0.3) !important;
             border-radius: 12px !important;
-            color: var(--text-muted) !important;
-            font-weight: 600 !important;
-            padding: 0.75rem 1.5rem !important;
+            padding: 0.75rem !important;
         }
         
-        .stTabs [aria-selected="true"] {
+        .stRadio > div > label {
+            color: var(--text-muted) !important;
+            padding: 0.5rem 0.75rem !important;
+            border-radius: 8px !important;
+            transition: var(--transition) !important;
+        }
+        
+        .stRadio > div > label:hover {
+            background: rgba(138, 154, 91, 0.1) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .stRadio > div > label[data-checked="true"] {
             background: linear-gradient(135deg, var(--sage) 0%, var(--forest) 100%) !important;
             color: var(--text-primary) !important;
+            font-weight: 700 !important;
+        }
+        
+        /* Checkboxes */
+        .stCheckbox {
+            color: var(--text-muted) !important;
+        }
+        
+        .stCheckbox > label > div[data-baseweb="checkbox"] {
+            border-color: var(--border-strong) !important;
+            background: rgba(61, 51, 44, 0.5) !important;
+        }
+        
+        .stCheckbox > label > div[data-baseweb="checkbox"][data-checked="true"] {
+            background: var(--sage) !important;
             border-color: var(--sage) !important;
         }
         
-        /* Success/Info/Warning boxes */
-        .stSuccess, .stInfo, .stWarning {
-            background: rgba(61, 51, 44, 0.4) !important;
+        /* Sliders */
+        .stSlider > div > div > div > div {
+            background: var(--sage) !important;
+        }
+        
+        .stSlider > div > div > div > div[role="slider"] {
+            background: var(--sage) !important;
+            border: 3px solid var(--earth-charcoal) !important;
+            box-shadow: 0 2px 8px rgba(138, 154, 91, 0.4) !important;
+        }
+        
+        /* Success/Info/Warning boxes - website style */
+        .stSuccess, .stInfo, .stWarning, .stError {
+            background: rgba(61, 51, 44, 0.5) !important;
             border: 1px solid var(--border-strong) !important;
             border-radius: var(--radius) !important;
             color: var(--text-primary) !important;
             padding: 1rem 1.25rem !important;
+            backdrop-filter: blur(10px) !important;
         }
         
         .stSuccess {
@@ -365,25 +461,34 @@ def inject_css():
         
         /* Divider */
         hr {
-            border-color: var(--border) !important;
+            border: none !important;
+            height: 1px !important;
+            background: linear-gradient(90deg, transparent, var(--border-strong), transparent) !important;
             margin: 2rem 0 !important;
         }
         
-        /* Sidebar */
+        /* Sidebar - EXACT website modal styling */
         [data-testid="stSidebar"] {
             background: linear-gradient(145deg, 
                 rgba(45, 37, 32, 0.95) 0%, 
                 rgba(26, 22, 18, 0.98) 100%) !important;
             border-right: 1px solid var(--border-strong) !important;
+            backdrop-filter: blur(20px) saturate(180%) !important;
         }
         
+        [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2,
         [data-testid="stSidebar"] h3 {
             color: var(--text-primary) !important;
         }
         
-        /* Photo gallery cards */
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: var(--text-muted) !important;
+        }
+        
+        /* Photo gallery cards - EXACT website card style */
         .sighting-card {
+            position: relative;
             background: linear-gradient(145deg, 
                 rgba(61, 51, 44, 0.6) 0%, 
                 rgba(45, 37, 32, 0.8) 100%);
@@ -393,7 +498,6 @@ def inject_css():
             box-shadow: var(--shadow-soft);
             transition: var(--transition);
             margin-bottom: 1.5rem;
-            position: relative;
         }
         
         .sighting-card::before {
@@ -409,6 +513,7 @@ def inject_css():
                 var(--sky) 100%);
             opacity: 0;
             transition: opacity 0.3s ease;
+            z-index: 1;
         }
         
         .sighting-card:hover::before {
@@ -416,7 +521,7 @@ def inject_css():
         }
         
         .sighting-card:hover {
-            transform: translateY(-4px) scale(1.01);
+            transform: translateY(-6px) scale(1.02);
             border-color: var(--earth-tan);
             box-shadow: var(--shadow-strong);
         }
@@ -431,22 +536,42 @@ def inject_css():
             overflow: hidden;
         }
         
+        .card-thumbnail::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 30% 30%, 
+                rgba(138, 154, 91, 0.15), 
+                transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: 1;
+        }
+        
+        .sighting-card:hover .card-thumbnail::before {
+            opacity: 1;
+        }
+        
         .card-thumbnail::after {
             content: '';
             position: absolute;
             inset: 0;
             background: linear-gradient(180deg, 
                 rgba(26, 22, 18, 0) 0%, 
-                rgba(26, 22, 18, 0.5) 100%);
+                rgba(26, 22, 18, 0.7) 100%);
             pointer-events: none;
+            z-index: 1;
         }
         
         .card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
             transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .sighting-card:hover .card-thumbnail img {
-            transform: scale(1.05);
+            transform: scale(1.08);
         }
         
         .card-content {
@@ -456,16 +581,27 @@ def inject_css():
         .card-title {
             font-family: 'Crimson Pro', Georgia, serif;
             font-weight: 700;
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             color: var(--earth-cream);
             margin-bottom: 0.5rem;
             letter-spacing: -0.01em;
+            line-height: 1.3;
         }
         
         .card-meta {
             color: var(--text-muted);
             font-size: 0.9rem;
             margin: 0.3rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        
+        .card-meta::before {
+            content: '•';
+            color: var(--sage);
+            font-size: 1.2rem;
+            line-height: 1;
         }
         
         .card-temp, .card-moon {
@@ -475,11 +611,6 @@ def inject_css():
             font-size: 0.85rem;
         }
         
-        .card-temp::before {
-            content: '🌡️ ';
-            font-size: 0.9rem;
-        }
-        
         /* Load more button */
         .load-more-btn {
             display: flex;
@@ -487,12 +618,7 @@ def inject_css():
             margin: 2rem 0;
         }
         
-        .load-more-btn button {
-            padding: 0.75rem 2rem !important;
-            font-size: 1rem !important;
-        }
-        
-        /* Scrollbar */
+        /* Scrollbar - website style */
         ::-webkit-scrollbar {
             width: 10px;
             height: 10px;
@@ -524,6 +650,62 @@ def inject_css():
             color: var(--text-dim);
             font-style: italic;
         }
+        
+        /* Chart containers */
+        .element-container {
+            background: transparent !important;
+        }
+        
+        /* Tabs styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 1rem;
+            background: transparent !important;
+            border-bottom: 1px solid var(--border) !important;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background: rgba(61, 51, 44, 0.3) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px 12px 0 0 !important;
+            color: var(--text-muted) !important;
+            font-weight: 600 !important;
+            padding: 0.75rem 1.5rem !important;
+            transition: var(--transition) !important;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(61, 51, 44, 0.5) !important;
+            border-color: var(--border-strong) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, var(--sage) 0%, var(--forest) 100%) !important;
+            color: var(--text-primary) !important;
+            border-color: var(--sage) !important;
+            font-weight: 700 !important;
+        }
+        
+        /* Expander styling */
+        .streamlit-expanderHeader {
+            background: rgba(61, 51, 44, 0.4) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            color: var(--text-primary) !important;
+            font-weight: 600 !important;
+        }
+        
+        .streamlit-expanderHeader:hover {
+            background: rgba(61, 51, 44, 0.6) !important;
+            border-color: var(--border-strong) !important;
+        }
+        
+        /* Dataframe styling */
+        .stDataFrame {
+            background: rgba(61, 51, 44, 0.3) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -535,13 +717,76 @@ def inject_css():
 # =============================================================================
 
 def render_timeline(base: pd.DataFrame, section: str):
-    """Daily timeline with earth-tone styling."""
+    """
+    Daily timeline with MULTIPLE trend lines when ≤4 species selected.
+    Aggregated area chart when >4 species or no species filter.
+    """
     st.subheader("📅 Daily Activity Timeline")
     
     if base.empty or "datetime" not in base.columns:
         st.info("No timeline data available")
         return
     
+    # Determine if we should show individual lines
+    if section == "Wildlife" and "wildlife_label" in base.columns:
+        unique_species = base["wildlife_label"].nunique()
+        species_list = base["wildlife_label"].unique().tolist()
+        
+        # Show individual lines if 4 or fewer species
+        if unique_species <= 4 and unique_species > 0:
+            # Create daily counts by species
+            daily_by_species = (
+                base.groupby([base["datetime"].dt.date, "wildlife_label"])
+                .size()
+                .reset_index(name="Events")
+            )
+            daily_by_species.columns = ["Date", "Species", "Events"]
+            daily_by_species["Date"] = pd.to_datetime(daily_by_species["Date"])
+            
+            # Get stable colors for species
+            domain, color_range = stable_color_domain(
+                species_list,
+                WILDLIFE_PALETTE,
+                pin_other_gray=("Other" in species_list),
+            )
+            
+            # Create multi-line chart
+            chart = (
+                alt.Chart(daily_by_species)
+                .mark_line(
+                    point=True,
+                    strokeWidth=3,
+                    opacity=0.9,
+                )
+                .encode(
+                    x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=0)),
+                    y=alt.Y("Events:Q", title="Event Count"),
+                    color=alt.Color(
+                        "Species:N",
+                        scale=alt.Scale(domain=domain, range=color_range),
+                        legend=alt.Legend(
+                            title="Species",
+                            orient="top",
+                            direction="horizontal",
+                            titleFontSize=14,
+                            titleFontWeight=700,
+                            labelFontSize=12,
+                        ),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("Date:T", title="Date", format="%B %d, %Y"),
+                        alt.Tooltip("Species:N", title="Species"),
+                        alt.Tooltip("Events:Q", title="Events"),
+                    ],
+                )
+                .properties(height=350)
+            )
+            
+            st.altair_chart(apply_chart_theme(chart), use_container_width=True)
+            st.caption(f"Showing individual trend lines for {unique_species} species")
+            return
+    
+    # Default: Aggregated area chart
     daily = base.groupby(base["datetime"].dt.date).size().reset_index(name="Events")
     daily.columns = ["Date", "Events"]
     daily["Date"] = pd.to_datetime(daily["Date"])
@@ -551,7 +796,7 @@ def render_timeline(base: pd.DataFrame, section: str):
     chart = (
         alt.Chart(daily)
         .mark_area(
-            line={"color": color},
+            line={"color": color, "strokeWidth": 2},
             color=alt.Gradient(
                 gradient="linear",
                 stops=[
@@ -563,14 +808,14 @@ def render_timeline(base: pd.DataFrame, section: str):
             opacity=0.75,
         )
         .encode(
-            x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d")),
+            x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=0)),
             y=alt.Y("Events:Q", title="Event Count"),
             tooltip=[
                 alt.Tooltip("Date:T", title="Date", format="%B %d, %Y"),
                 alt.Tooltip("Events:Q", title="Events"),
             ],
         )
-        .properties(height=300)
+        .properties(height=350)
     )
     
     st.altair_chart(apply_chart_theme(chart), use_container_width=True)
@@ -622,14 +867,18 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     color_enc = alt.Color(
         "animal_group:N",
         scale=alt.Scale(domain=domain, range=color_range),
-        legend=alt.Legend(title=section),
+        legend=alt.Legend(
+            title=section,
+            orient="top",
+            direction="horizontal",
+        ),
     )
     
     # Time chart
     if bar_style == "Grouped":
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar(opacity=0.90, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
                 x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
@@ -641,12 +890,12 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                     alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
-            .properties(height=300)
+            .properties(height=320)
         )
     else:  # Stacked
         time_chart = (
             alt.Chart(by_time)
-            .mark_bar(opacity=0.90, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
                 x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
@@ -657,14 +906,14 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                     alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
-            .properties(height=300)
+            .properties(height=320)
         )
     
     # Day chart
     if bar_style == "Grouped":
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar(opacity=0.90, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
                 x=alt.X("day_of_week:N", title="Day of Week", sort=day_order, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
@@ -676,12 +925,12 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                     alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
-            .properties(height=300)
+            .properties(height=320)
         )
     else:  # Stacked
         day_chart = (
             alt.Chart(by_day)
-            .mark_bar(opacity=0.90, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
                 x=alt.X("day_of_week:N", title="Day of Week", sort=day_order, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Sightings:Q", title="Count"),
@@ -692,7 +941,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                     alt.Tooltip("Sightings:Q", title="Count"),
                 ],
             )
-            .properties(height=300)
+            .properties(height=320)
         )
     
     # Moon phase chart (if available)
@@ -706,7 +955,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             if bar_style == "Grouped":
                 moon_chart = (
                     alt.Chart(by_moon)
-                    .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                    .mark_bar(opacity=0.9, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
                     .encode(
                         y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
                         x=alt.X("Sightings:Q", title="Count"),
@@ -718,12 +967,12 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                             alt.Tooltip("Sightings:Q", title="Count"),
                         ],
                     )
-                    .properties(height=250)
+                    .properties(height=280)
                 )
             else:
                 moon_chart = (
                     alt.Chart(by_moon)
-                    .mark_bar(opacity=0.90, cornerRadiusTopRight=3, cornerRadiusBottomRight=3)
+                    .mark_bar(opacity=0.9, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
                     .encode(
                         y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
                         x=alt.X("Sightings:Q", title="Count"),
@@ -734,7 +983,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                             alt.Tooltip("Sightings:Q", title="Count"),
                         ],
                     )
-                    .properties(height=250)
+                    .properties(height=280)
                 )
             
             # Render all three charts
@@ -780,7 +1029,7 @@ def render_listing_and_viewer(
     drive_client_factory,
     download_bytes_func,
 ):
-    """Photo gallery with ranch wildlife theme."""
+    """Photo gallery with exact ranch wildlife card styling."""
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
     if section == "Wildlife" and not include_other:
@@ -852,7 +1101,7 @@ def render_listing_and_viewer(
                 if temp_str or moon_phase:
                     meta_line = '<div style="margin-top: 0.35rem;">'
                     if temp_str:
-                        meta_line += f'<span class="card-temp">{temp_str}</span>'
+                        meta_line += f'<span class="card-temp">🌡️ {temp_str}</span>'
                     if moon_phase and moon_emoji:
                         meta_line += f'<span class="card-moon">{moon_emoji} {moon_phase}</span>'
                     meta_line += '</div>'
@@ -860,7 +1109,7 @@ def render_listing_and_viewer(
 
                 if url:
                     st.markdown(
-                        f'<div style="margin-top:0.55rem;"><a href="{url}" target="_blank" style="font-size:0.85rem; opacity:0.9; color: var(--sage);">View in Drive ↗</a></div>',
+                        f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" style="font-size:0.85rem; color: var(--sage); font-weight: 600; text-decoration: none; transition: var(--transition);">View in Drive ↗</a></div>',
                         unsafe_allow_html=True,
                     )
 
