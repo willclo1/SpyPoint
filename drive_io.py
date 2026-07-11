@@ -161,7 +161,7 @@ def resolve_page_images(
             )
             response = service.files().list(
                 q=query,
-                fields="files(id,name,webViewLink,mimeType)",
+                fields="files(id,name,webViewLink,thumbnailLink,mimeType)",
                 pageSize=len(filename_batch),
             ).execute()
 
@@ -174,6 +174,7 @@ def resolve_page_images(
                     "id": file_id,
                     "webViewLink": (file_info.get("webViewLink") or "").strip()
                     or drive_view_url(file_id),
+                    "thumbnailLink": (file_info.get("thumbnailLink") or "").strip(),
                 }
 
     return resolved

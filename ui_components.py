@@ -312,7 +312,8 @@ def inject_css():
         .gallery-summary { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.65rem .8rem; margin:.6rem 0 .8rem; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text-soft); font-size:.82rem; }
         .sighting-card { overflow:hidden; border-radius:var(--radius-lg); border:1px solid var(--border); background:var(--surface); margin-bottom:1rem; }
         .card-thumbnail { background:var(--surface-muted); min-height:230px; display:grid; place-items:center; overflow:hidden; }
-        .card-thumbnail img { width:100%; aspect-ratio:16/10; object-fit:cover; display:block; }
+        .card-thumbnail img { width:100%; aspect-ratio:16/10; object-fit:cover; display:block; background:var(--surface-muted); }
+        .thumbnail-placeholder { color:var(--text-faint); font-size:.8rem; letter-spacing:.01em; }
         .card-content { padding:.9rem 1rem 1rem; }
         .card-title { font-size:.95rem; font-weight:670; color:var(--text); }
         .card-meta { color:var(--text-soft); font-size:.8rem; margin-top:.2rem; }
@@ -676,8 +677,10 @@ def render_listing_and_viewer(
         (str(row.camera).strip(), str(row.filename).strip())
         for row in display_view[["camera", "filename"]].itertuples(index=False)
     )
-    with st.spinner("Loading this page's photos..."):
-        page_images = resolve_page_images(root_folder_id, page_items)
+    # Resolve only metadata for the visible page. Drive thumbnail URLs are
+    # rendered by the browser, so Streamlit does not block while downloading
+    # every image and the previous view is never covered by a loading overlay.
+    page_images = resolve_page_images(root_folder_id, page_items)
 
     cols_per_row = 2
     rows = (len(display_view) + cols_per_row - 1) // cols_per_row
@@ -702,19 +705,28 @@ def render_listing_and_viewer(
             hit = page_images.get((cam, fn), {})
             file_id = hit.get("id", "")
             url = hit.get("webViewLink", "")
+            thumbnail_url = hit.get("thumbnailLink", "")
 
             with cols[col_idx]:
                 st.markdown('<div class="sighting-card">', unsafe_allow_html=True)
-                if file_id:
+                if thumbnail_url:
+                    safe_thumb = html.escape(thumbnail_url, quote=True)
+                    safe_alt = html.escape(f"{label} at {cam}", quote=True)
+                    st.markdown(
+                        f'<div class="card-thumbnail"><img src="{safe_thumb}" alt="{safe_alt}" loading="lazy" decoding="async"></div>',
+                        unsafe_allow_html=True,
+                    )
+                elif file_id:
+                    # Rare fallback for files where Drive does not provide a
+                    # thumbnail URL. This path is cached and does not show a
+                    # blocking spinner.
                     img_bytes = load_thumbnail_cached(file_id, drive_client_factory, download_bytes_func)
                     if img_bytes:
-                        st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
                         st.image(img_bytes, width="stretch")
-                        st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown('<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>', unsafe_allow_html=True)
+                        st.markdown('<div class="card-thumbnail"><div class="thumbnail-placeholder">Image unavailable</div></div>', unsafe_allow_html=True)
                 else:
-                    st.markdown('<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>', unsafe_allow_html=True)
+                    st.markdown('<div class="card-thumbnail"><div class="thumbnail-placeholder">Image unavailable</div></div>', unsafe_allow_html=True)
 
                 st.markdown('<div class="card-content">', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
