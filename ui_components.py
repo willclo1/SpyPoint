@@ -1,6 +1,8 @@
 # ui_components.py
 from __future__ import annotations
 
+import html
+import re
 from typing import Dict, Tuple, List
 
 import altair as alt
@@ -119,6 +121,15 @@ def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_f
         return img_bytes
     except Exception:
         return None
+
+
+def _large_thumbnail_url(url: str, width: int = 900) -> str:
+    """Ask Drive for a larger browser-rendered thumbnail."""
+    if not url:
+        return ""
+    if re.search(r"=[sw]\d+$", url):
+        return re.sub(r"=[sw]\d+$", f"=w{width}", url)
+    return f"{url}=w{width}"
 
 
 # =============================================================================
@@ -703,45 +714,49 @@ def render_listing_and_viewer(
             time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
             temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
             hit = page_images.get((cam, fn), {})
-            file_id = hit.get("id", "")
             url = hit.get("webViewLink", "")
-            thumbnail_url = hit.get("thumbnailLink", "")
+            thumbnail_url = _large_thumbnail_url(hit.get("thumbnailLink", ""))
+            safe_label = html.escape(str(label))
+            safe_cam = html.escape(cam)
+            safe_time = html.escape(time_str)
+            safe_temp = html.escape(temp_str)
+            safe_moon = html.escape(str(moon_phase))
+            safe_url = html.escape(url, quote=True)
+            safe_thumb = html.escape(thumbnail_url, quote=True)
+
+            if safe_thumb:
+                image_markup = (
+                    f'<img src="{safe_thumb}" alt="{safe_label} at {safe_cam}" '
+                    'loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+                )
+            else:
+                image_markup = '<div class="photo-unavailable">Image unavailable</div>'
+
+            metadata = ""
+            if safe_temp:
+                metadata += f'<span class="card-temp">Temperature {safe_temp}</span>'
+            if safe_moon:
+                metadata += f'<span class="card-moon">Moon {safe_moon}</span>'
+            metadata_markup = f'<div style="margin-top:.35rem;">{metadata}</div>' if metadata else ""
+            link_markup = (
+                f'<div style="margin-top:.7rem;"><a href="{safe_url}" target="_blank" '
+                'rel="noopener noreferrer" class="card-link">View in Drive ↗</a></div>'
+                if safe_url else ""
+            )
 
             with cols[col_idx]:
-                st.markdown('<div class="sighting-card">', unsafe_allow_html=True)
-                if thumbnail_url:
-                    safe_thumb = html.escape(thumbnail_url, quote=True)
-                    safe_alt = html.escape(f"{label} at {cam}", quote=True)
-                    st.markdown(
-                        f'<div class="card-thumbnail"><img src="{safe_thumb}" alt="{safe_alt}" loading="lazy" decoding="async"></div>',
-                        unsafe_allow_html=True,
-                    )
-                elif file_id:
-                    # Rare fallback for files where Drive does not provide a
-                    # thumbnail URL. This path is cached and does not show a
-                    # blocking spinner.
-                    img_bytes = load_thumbnail_cached(file_id, drive_client_factory, download_bytes_func)
-                    if img_bytes:
-                        st.image(img_bytes, width="stretch")
-                    else:
-                        st.markdown('<div class="card-thumbnail"><div class="thumbnail-placeholder">Image unavailable</div></div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="card-thumbnail"><div class="thumbnail-placeholder">Image unavailable</div></div>', unsafe_allow_html=True)
-
-                st.markdown('<div class="card-content">', unsafe_allow_html=True)
-                st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
-                if temp_str or moon_phase:
-                    meta_line = '<div style="margin-top: 0.35rem;">'
-                    if temp_str:
-                        meta_line += f'<span class="card-temp">Temperature {temp_str}</span>'
-                    if moon_phase and moon_emoji:
-                        meta_line += f'<span class="card-moon">Moon {moon_phase}</span>'
-                    meta_line += '</div>'
-                    st.markdown(meta_line, unsafe_allow_html=True)
-                if url:
-                    st.markdown(f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" class="card-link">View in Drive ↗</a></div>', unsafe_allow_html=True)
-                st.markdown("</div></div>", unsafe_allow_html=True)
+                card_markup = f"""
+                <article class="sighting-card">
+                    <div class="card-thumbnail">{image_markup}</div>
+                    <div class="card-content">
+                        <div class="card-title">{safe_label} · {safe_cam}</div>
+                        <div class="card-meta">{safe_time}</div>
+                        {metadata_markup}
+                        {link_markup}
+                    </div>
+                </article>
+                """
+                st.markdown(card_markup, unsafe_allow_html=True)
 
     st.markdown('<div class="pagination-shell"></div>', unsafe_allow_html=True)
     nav_left, nav_center, nav_right = st.columns([1, 1.35, 1])
