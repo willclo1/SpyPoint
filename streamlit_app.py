@@ -355,7 +355,7 @@ def render_app_view():
         if st.session_state.get("photo_filter_signature") != signature:
             st.session_state.photo_filter_signature = signature
             st.session_state.gallery_page = 1
-            st.session_state.pop("gallery_page_input", None)
+            st.session_state.pop("gallery_page_jump", None)
 
         st.markdown(f'<div class="gallery-summary"><span><strong>{len(base):,}</strong> matching sightings</span><span>Newest first</span></div>', unsafe_allow_html=True)
         render_listing_and_viewer(

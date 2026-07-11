@@ -16,141 +16,93 @@ from drive_io import resolve_page_images
 # =============================================================================
 
 PALETTE = {
-    # Exact earth-tone palette from website
-    "earth_dark": "#1a1612",
-    "earth_charcoal": "#2d2520",
-    "earth_brown": "#3d332c",
-    "earth_clay": "#4a3f35",
-    "earth_tan": "#8b7355",
-    "earth_sand": "#c4a77d",
-    "earth_cream": "#e8d5b7",
-    
-    # Nature accent colors from website
-    "sage": "#8a9a5b",
-    "forest": "#4a5d3f",
-    "sunset": "#d97642",
-    "sky": "#7ea8be",
-    
-    # UI colors - exact from website
-    "text_primary": "#17211b",
-    "text_muted": "#4f5d54",
-    "text_dim": "#6e7b72",
-    "border": "#d9dfda",
-    "border_strong": "#bcc7bf",
-    
-    # Semantic colors
-    "success": "#8a9a5b",
-    "info": "#7ea8be",
-    "warning": "#d97642",
+    "slate": "#64748B",
+    "blue": "#4C78A8",
+    "orange": "#F58518",
+    "green": "#54A24B",
+    "red": "#E45756",
+    "teal": "#72B7B2",
+    "purple": "#B279A2",
+    "pink": "#FF9DA6",
+    "brown": "#9D755D",
     "neutral": "#94A3B8",
 }
 
-# Wildlife colors - vibrant but earthy
+# An accessible categorical palette that remains distinguishable on both
+# Streamlit's dark and light themes. Chart backgrounds and text are inherited
+# from Streamlit rather than hard-coded.
 WILDLIFE_PALETTE = [
-    "#8a9a5b",  # sage
-    "#d97642",  # sunset
-    "#7ea8be",  # sky
-    "#c4a77d",  # sand
-    "#4a5d3f",  # forest
-    "#8b7355",  # tan
-    "#4E79A7",  # blue
-    "#E15759",  # red
-    "#76B7B2",  # teal
-    "#59A14F",  # green
-    "#EDC948",  # yellow
-    "#B07AA1",  # purple
-    "#FF9DA7",  # pink
-    "#9C755F",  # brown
-    "#BAB0AC",  # warm gray
-    "#17BECF",  # cyan
+    "#4C78A8",
+    "#F58518",
+    "#54A24B",
+    "#E45756",
+    "#72B7B2",
+    "#B279A2",
+    "#FF9DA6",
+    "#9D755D",
+    "#A0CBE8",
+    "#FFBF79",
+    "#8CD17D",
+    "#FF9D9A",
 ]
 
 SECTION_COLORS = {
-    "wildlife": PALETTE["sage"],
-    "people": PALETTE["sky"],
-    "vehicle": PALETTE["sunset"],
+    "wildlife": PALETTE["green"],
+    "people": PALETTE["blue"],
+    "vehicle": PALETTE["orange"],
+    "vehicles": PALETTE["orange"],
 }
 
 
 def stable_color_domain(values: List[str], palette: List[str], *, pin_other_gray: bool = True) -> Tuple[List[str], List[str]]:
-    """Stable category -> color mapping."""
+    """Return a deterministic category-to-color mapping."""
     cleaned = []
-    for v in values:
-        if v is None:
+    for value in values:
+        if value is None:
             continue
-        s = str(v).strip()
-        if s:
-            cleaned.append(s)
+        label = str(value).strip()
+        if label:
+            cleaned.append(label)
 
     domain = sorted(set(cleaned))
     if not domain:
         return [], []
 
     if pin_other_gray and "Other" in domain:
-        domain_no_other = [d for d in domain if d != "Other"]
-        range_no_other = [palette[i % len(palette)] for i in range(len(domain_no_other))]
-        return domain_no_other + ["Other"], range_no_other + [PALETTE["neutral"]]
+        named = [label for label in domain if label != "Other"]
+        colors = [palette[index % len(palette)] for index in range(len(named))]
+        return named + ["Other"], colors + [PALETTE["neutral"]]
 
-    color_range = [palette[i % len(palette)] for i in range(len(domain))]
-    return domain, color_range
-
-
-def _altair_theme():
-    """Altair theme matching website exactly."""
-    return {
-        "config": {
-            "background": "#ffffff",
-            "view": {"stroke": "transparent"},
-            "font": "Inter, -apple-system, system-ui, sans-serif",
-            "axis": {
-                "labelColor": PALETTE["text_muted"],
-                "titleColor": PALETTE["text_muted"],
-                "gridColor": "#e3e8e4",
-                "tickColor": "#d9dfda",
-                "domainColor": "#bcc7bf",
-                "labelFontSize": 12,
-                "titleFontSize": 13,
-                "titleFontWeight": 600,
-                "labelPadding": 8,
-                "titlePadding": 12,
-            },
-            "legend": {
-                "labelColor": PALETTE["text_muted"],
-                "titleColor": PALETTE["text_primary"],
-                "labelFontSize": 12,
-                "titleFontSize": 13,
-                "titleFontWeight": 700,
-                "symbolType": "circle",
-                "symbolSize": 100,
-                "padding": 10,
-                "orient": "top",
-            },
-            "title": {
-                "color": PALETTE["text_primary"],
-                "fontSize": 16,
-                "fontWeight": 700,
-                "anchor": "start",
-                "font": "Inter, -apple-system, system-ui, sans-serif",
-            },
-        }
-    }
-
-
-try:
-    alt.themes.register("ranch_theme", _altair_theme)
-except Exception:
-    pass
-
-alt.themes.enable("ranch_theme")
+    return domain, [palette[index % len(palette)] for index in range(len(domain))]
 
 
 def apply_chart_theme(chart: alt.Chart) -> alt.Chart:
-    """Polish charts to match website."""
+    """Apply structural chart styling while allowing Streamlit to theme colors."""
     return (
         chart
+        .configure(background="transparent")
         .configure_view(strokeOpacity=0)
-        .configure_axis(grid=True, gridOpacity=0.4)
+        .configure_axis(
+            grid=True,
+            gridOpacity=0.16,
+            domainOpacity=0.45,
+            tickOpacity=0.45,
+            labelFontSize=12,
+            titleFontSize=12,
+            titleFontWeight=600,
+            labelPadding=7,
+            titlePadding=10,
+        )
         .configure_axisX(labelAngle=0)
+        .configure_legend(
+            orient="top",
+            direction="horizontal",
+            labelFontSize=12,
+            titleFontSize=12,
+            titleFontWeight=600,
+            symbolSize=90,
+            padding=4,
+        )
     )
 
 
@@ -174,27 +126,92 @@ def load_thumbnail_cached(file_id: str, _drive_client_factory, _download_bytes_f
 # =============================================================================
 
 def inject_css():
-    """Inject a restrained, high-legibility application design system."""
+    """Inject a theme-aware, low-noise application design system."""
     st.markdown(
         """
         <style>
         :root {
-            --page: #f4f6f3;
+            color-scheme: dark;
+            --page: #0b0f14;
+            --surface: #111821;
+            --surface-raised: #17212c;
+            --surface-muted: #0f151d;
+            --text: #edf2f7;
+            --text-soft: #b4c0cd;
+            --text-faint: #8493a3;
+            --border: #273444;
+            --border-strong: #3a4a5c;
+            --accent: #6ea8d7;
+            --accent-hover: #8bbce3;
+            --accent-soft: rgba(110, 168, 215, .14);
+            --positive: #72b58d;
+            --focus: rgba(110, 168, 215, .34);
+            --table-header: #1b2733;
+            --table-row-alt: #101720;
+            --radius: 7px;
+            --radius-lg: 10px;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+                --page: #f4f6f8;
+                --surface: #ffffff;
+                --surface-raised: #f8fafc;
+                --surface-muted: #eef2f6;
+                --text: #18212b;
+                --text-soft: #4f5f6f;
+                --text-faint: #6f7e8d;
+                --border: #d7dee6;
+                --border-strong: #b8c3ce;
+                --accent: #356f9f;
+                --accent-hover: #285c86;
+                --accent-soft: rgba(53, 111, 159, .10);
+                --positive: #32734d;
+                --focus: rgba(53, 111, 159, .24);
+                --table-header: #e9eef3;
+                --table-row-alt: #f7f9fb;
+            }
+        }
+
+        html[data-theme="light"], body[data-theme="light"], [data-theme="light"] {
+            color-scheme: light;
+            --page: #f4f6f8;
             --surface: #ffffff;
-            --surface-subtle: #f8faf7;
-            --surface-strong: #eef2ed;
-            --text: #17211b;
-            --text-soft: #4f5d54;
-            --text-faint: #6e7b72;
-            --border: #d9dfda;
-            --border-strong: #bcc7bf;
-            --brand: #244b36;
-            --brand-hover: #183c2a;
-            --brand-soft: #e6efe9;
-            --focus: #2d6b4a;
-            --warning: #8a4b16;
-            --radius: 8px;
-            --radius-lg: 12px;
+            --surface-raised: #f8fafc;
+            --surface-muted: #eef2f6;
+            --text: #18212b;
+            --text-soft: #4f5f6f;
+            --text-faint: #6f7e8d;
+            --border: #d7dee6;
+            --border-strong: #b8c3ce;
+            --accent: #356f9f;
+            --accent-hover: #285c86;
+            --accent-soft: rgba(53, 111, 159, .10);
+            --positive: #32734d;
+            --focus: rgba(53, 111, 159, .24);
+            --table-header: #e9eef3;
+            --table-row-alt: #f7f9fb;
+        }
+
+        html[data-theme="dark"], body[data-theme="dark"], [data-theme="dark"] {
+            color-scheme: dark;
+            --page: #0b0f14;
+            --surface: #111821;
+            --surface-raised: #17212c;
+            --surface-muted: #0f151d;
+            --text: #edf2f7;
+            --text-soft: #b4c0cd;
+            --text-faint: #8493a3;
+            --border: #273444;
+            --border-strong: #3a4a5c;
+            --accent: #6ea8d7;
+            --accent-hover: #8bbce3;
+            --accent-soft: rgba(110, 168, 215, .14);
+            --positive: #72b58d;
+            --focus: rgba(110, 168, 215, .34);
+            --table-header: #1b2733;
+            --table-row-alt: #101720;
         }
 
         html, body, [class*="css"] {
@@ -202,14 +219,14 @@ def inject_css():
             color: var(--text);
         }
         .stApp { background: var(--page); color: var(--text); }
-        .main .block-container { max-width: 1440px; padding: 1rem 2rem 4rem; }
-        header[data-testid="stHeader"] { background: var(--page); }
+        .main .block-container { max-width: 1420px; padding: 1rem 2rem 4rem; }
+        header[data-testid="stHeader"] { background: color-mix(in srgb, var(--page) 94%, transparent); }
         footer, #MainMenu { visibility: hidden; }
 
-        h1, h2, h3, h4 { color: var(--text) !important; letter-spacing: -.015em; }
-        h1 { font-size: 2rem !important; line-height: 1.15 !important; font-weight: 680 !important; }
-        h2 { font-size: 1.25rem !important; line-height: 1.3 !important; font-weight: 670 !important; }
-        h3 { font-size: 1rem !important; line-height: 1.35 !important; font-weight: 660 !important; }
+        h1, h2, h3, h4 { color: var(--text) !important; letter-spacing: -.012em; }
+        h1 { font-size: 2rem !important; line-height: 1.16 !important; font-weight: 680 !important; }
+        h2 { font-size: 1.24rem !important; line-height: 1.3 !important; font-weight: 660 !important; }
+        h3 { font-size: 1rem !important; line-height: 1.35 !important; font-weight: 650 !important; }
         p, label, .stCaption { color: var(--text-soft); }
 
         [data-testid="stSidebar"] { background: var(--surface); border-right: 1px solid var(--border); }
@@ -218,30 +235,30 @@ def inject_css():
 
         .app-header {
             display:flex; align-items:center; justify-content:space-between; gap:1rem;
-            padding:.7rem 0 1rem; border-bottom:1px solid var(--border); margin-bottom:1rem;
+            padding:.65rem 0 1rem; border-bottom:1px solid var(--border); margin-bottom:1rem;
         }
-        .brand-wrap { display:flex; align-items:center; gap:.7rem; }
+        .brand-wrap { display:flex; align-items:center; gap:.72rem; }
         .brand-mark {
-            width:38px; height:38px; display:grid; place-items:center; border-radius:8px;
-            background:var(--brand); color:white; font-size:1rem; font-weight:700;
+            width:38px; height:38px; display:grid; place-items:center; border-radius:7px;
+            background:var(--accent); color:#081018; font-size:.92rem; font-weight:760;
         }
         .brand-name { font-size:1rem; font-weight:700; color:var(--text); line-height:1.1; }
-        .brand-kicker { color:var(--text-faint); font-size:.72rem; margin-top:.2rem; }
+        .brand-kicker { color:var(--text-faint); font-size:.73rem; margin-top:.2rem; }
         .sync-pill { display:flex; align-items:center; gap:.45rem; color:var(--text-soft); font-size:.78rem; }
-        .sync-dot { width:7px; height:7px; border-radius:50%; background:#2f7b4f; }
+        .sync-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); }
 
         .page-hero {
             display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:2rem; align-items:end;
-            padding:1rem 0 1.25rem; margin-bottom:.8rem;
+            padding:.85rem 0 1.1rem; margin-bottom:.75rem;
         }
-        .eyebrow { color:var(--brand); font-size:.75rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
-        .hero-title { color:var(--text); font-size:clamp(1.75rem,2.6vw,2.55rem); line-height:1.08; margin:.35rem 0 .55rem; font-weight:680; max-width:800px; }
-        .hero-copy { max-width:760px; color:var(--text-soft); font-size:.98rem; line-height:1.55; }
+        .eyebrow { color:var(--accent); font-size:.72rem; font-weight:700; letter-spacing:.055em; text-transform:uppercase; }
+        .hero-title { color:var(--text); font-size:clamp(1.7rem,2.5vw,2.45rem); line-height:1.1; margin:.32rem 0 .52rem; font-weight:680; max-width:820px; }
+        .hero-copy { max-width:760px; color:var(--text-soft); font-size:.96rem; line-height:1.55; }
         .hero-stat { text-align:right; border-left:1px solid var(--border); padding-left:1.5rem; }
-        .hero-stat strong { display:block; font-size:1.65rem; color:var(--text); font-variant-numeric: tabular-nums; }
+        .hero-stat strong { display:block; font-size:1.62rem; color:var(--text); font-variant-numeric:tabular-nums; }
         .hero-stat span { color:var(--text-faint); font-size:.75rem; }
 
-        .section-heading { display:flex; justify-content:space-between; align-items:end; gap:1rem; margin:1.8rem 0 .65rem; }
+        .section-heading { display:flex; justify-content:space-between; align-items:end; gap:1rem; margin:1.7rem 0 .62rem; }
         .section-heading h2 { margin:0 !important; }
         .section-heading p { margin:.2rem 0 0; font-size:.84rem; }
 
@@ -249,10 +266,10 @@ def inject_css():
         [data-testid="stExpander"] details { border:0 !important; }
         [data-testid="stExpander"] summary { color:var(--text); font-size:.9rem; font-weight:650; }
 
-        [data-testid="stMetric"] { min-height:104px; padding:1rem; border-radius:var(--radius-lg); background:var(--surface); border:1px solid var(--border); box-shadow:none; }
+        [data-testid="stMetric"] { min-height:102px; padding:1rem; border-radius:var(--radius-lg); background:var(--surface); border:1px solid var(--border); box-shadow:none; }
         [data-testid="stMetricLabel"] { color:var(--text-faint) !important; font-size:.75rem !important; font-weight:600 !important; }
-        [data-testid="stMetricValue"] { color:var(--text) !important; font-size:1.8rem !important; font-weight:670 !important; font-variant-numeric:tabular-nums; }
-        [data-testid="stMetricDelta"] { color:var(--brand) !important; }
+        [data-testid="stMetricValue"] { color:var(--text) !important; font-size:1.76rem !important; font-weight:670 !important; font-variant-numeric:tabular-nums; }
+        [data-testid="stMetricDelta"] { color:var(--accent) !important; }
 
         .insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:.7rem 0 1.1rem; }
         .insight-card { padding:.9rem 1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); }
@@ -263,12 +280,12 @@ def inject_css():
         .stButton > button, .stLinkButton > a {
             min-height:38px; border-radius:7px !important; border:1px solid var(--border-strong) !important;
             background:var(--surface) !important; color:var(--text) !important; font-weight:620 !important;
-            box-shadow:none !important; transition:background .1s ease,border-color .1s ease !important;
+            box-shadow:none !important; transition:background .1s ease,border-color .1s ease,color .1s ease !important;
         }
-        .stButton > button:hover, .stLinkButton > a:hover { border-color:var(--brand) !important; background:var(--brand-soft) !important; color:var(--brand) !important; }
-        .stButton > button[kind="primary"] { background:var(--brand) !important; color:white !important; border-color:var(--brand) !important; }
-        .stButton > button[kind="primary"]:hover { background:var(--brand-hover) !important; color:white !important; }
-        .stButton > button:focus-visible, .stLinkButton > a:focus-visible { outline:3px solid rgba(45,107,74,.25) !important; outline-offset:2px; }
+        .stButton > button:hover, .stLinkButton > a:hover { border-color:var(--accent) !important; background:var(--accent-soft) !important; color:var(--accent-hover) !important; }
+        .stButton > button[kind="primary"] { background:var(--accent) !important; color:#081018 !important; border-color:var(--accent) !important; }
+        .stButton > button[kind="primary"]:hover { background:var(--accent-hover) !important; color:#081018 !important; }
+        .stButton > button:focus-visible, .stLinkButton > a:focus-visible { outline:3px solid var(--focus) !important; outline-offset:2px; }
 
         div[data-baseweb="select"] > div, [data-testid="stDateInput"] input,
         [data-testid="stNumberInput"] input, .stTextInput input {
@@ -276,36 +293,42 @@ def inject_css():
             color:var(--text) !important; border-radius:7px !important; box-shadow:none !important;
         }
         div[data-baseweb="select"] > div:focus-within, [data-testid="stDateInput"] input:focus,
-        [data-testid="stNumberInput"] input:focus, .stTextInput input:focus { border-color:var(--focus) !important; box-shadow:0 0 0 3px rgba(45,107,74,.12) !important; }
+        [data-testid="stNumberInput"] input:focus, .stTextInput input:focus { border-color:var(--accent) !important; box-shadow:0 0 0 3px var(--focus) !important; }
         [data-testid="stWidgetLabel"] p { color:var(--text); font-size:.8rem; font-weight:620; }
-        [data-testid="stSlider"] [role="slider"] { background:var(--brand) !important; }
+        [data-testid="stSlider"] [role="slider"] { background:var(--accent) !important; }
 
         [data-testid="stAlert"] { border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
         hr { border-color:var(--border) !important; }
 
         [data-testid="stSegmentedControl"] {
             position:sticky; top:.55rem; z-index:20; padding:.25rem; margin:.1rem 0 .9rem;
-            border:1px solid var(--border); border-radius:9px; background:rgba(255,255,255,.96);
-            box-shadow:0 1px 2px rgba(23,33,27,.04);
+            border:1px solid var(--border); border-radius:9px; background:color-mix(in srgb, var(--surface) 96%, transparent);
+            box-shadow:0 1px 2px rgba(0,0,0,.12);
         }
         [data-testid="stSegmentedControl"] button { min-height:38px; border-radius:6px !important; color:var(--text-soft) !important; font-weight:620 !important; }
-        [data-testid="stSegmentedControl"] button:hover { background:var(--surface-subtle) !important; }
-        [data-testid="stSegmentedControl"] button[aria-checked="true"] { background:var(--brand) !important; color:white !important; }
+        [data-testid="stSegmentedControl"] button:hover { background:var(--surface-raised) !important; }
+        [data-testid="stSegmentedControl"] button[aria-checked="true"] { background:var(--accent) !important; color:#081018 !important; }
 
         .gallery-summary { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.65rem .8rem; margin:.6rem 0 .8rem; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text-soft); font-size:.82rem; }
         .sighting-card { overflow:hidden; border-radius:var(--radius-lg); border:1px solid var(--border); background:var(--surface); margin-bottom:1rem; }
-        .card-thumbnail { background:#e8ece8; min-height:230px; display:grid; place-items:center; overflow:hidden; }
+        .card-thumbnail { background:var(--surface-muted); min-height:230px; display:grid; place-items:center; overflow:hidden; }
         .card-thumbnail img { width:100%; aspect-ratio:16/10; object-fit:cover; display:block; }
         .card-content { padding:.9rem 1rem 1rem; }
         .card-title { font-size:.95rem; font-weight:670; color:var(--text); }
         .card-meta { color:var(--text-soft); font-size:.8rem; margin-top:.2rem; }
-        .card-temp, .card-moon { display:inline-flex; margin-right:.65rem; margin-top:.5rem; color:var(--text-soft); font-size:.75rem; }
+        .card-temp, .card-moon { display:inline-flex; margin-right:.7rem; margin-top:.5rem; color:var(--text-soft); font-size:.75rem; }
+        .card-link { color:var(--accent) !important; font-size:.82rem; font-weight:620; text-decoration:none; }
+        .card-link:hover { color:var(--accent-hover) !important; text-decoration:underline; }
         .embed-wrap { overflow:hidden; border-radius:var(--radius-lg); border:1px solid var(--border); background:var(--surface); }
         .small-muted { color:var(--text-faint); font-size:.76rem; }
 
+        .pagination-shell { margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border); }
+        .pagination-status { text-align:center; color:var(--text-soft); font-size:.8rem; padding-top:.25rem; }
+
         [data-testid="stDataFrame"] { border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; background:var(--surface); }
         [data-testid="stDataFrame"] canvas { font-family:Inter,ui-sans-serif,system-ui,sans-serif !important; }
-        [data-testid="stDataFrame"] [role="columnheader"] { background:var(--surface-strong) !important; color:var(--text) !important; font-weight:650 !important; }
+        [data-testid="stDataFrame"] [role="columnheader"] { background:var(--table-header) !important; color:var(--text) !important; font-weight:650 !important; }
+        [data-testid="stDataFrame"] [role="gridcell"] { color:var(--text) !important; border-color:var(--border) !important; }
 
         @media (max-width:900px) {
             .main .block-container { padding:.75rem .9rem 3rem; }
@@ -318,6 +341,7 @@ def inject_css():
         """,
         unsafe_allow_html=True,
     )
+
 
 def render_timeline(base: pd.DataFrame, section: str):
     """
@@ -392,21 +416,14 @@ def render_timeline(base: pd.DataFrame, section: str):
     daily.columns = ["Date", "Events"]
     daily["Date"] = pd.to_datetime(daily["Date"])
     
-    color = SECTION_COLORS.get(section.lower(), PALETTE["sage"])
+    color = SECTION_COLORS.get(section.lower(), PALETTE["green"])
     
     chart = (
         alt.Chart(daily)
         .mark_area(
-            line={"color": color, "strokeWidth": 2},
-            color=alt.Gradient(
-                gradient="linear",
-                stops=[
-                    alt.GradientStop(color=color, offset=0),
-                    alt.GradientStop(color=PALETTE["earth_dark"], offset=1),
-                ],
-                x1=0, x2=0, y1=0, y2=1,
-            ),
-            opacity=0.75,
+            line={"color": color, "strokeWidth": 2.25},
+            color=color,
+            opacity=0.24,
         )
         .encode(
             x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=0)),
@@ -651,39 +668,6 @@ def render_listing_and_viewer(
         st.session_state.gallery_page = 1
     st.session_state.gallery_page = min(max(1, st.session_state.gallery_page), total_pages)
 
-    nav_left, nav_center, nav_right = st.columns([1, 2, 1])
-    with nav_left:
-        if st.button(
-            "← Previous",
-            disabled=st.session_state.gallery_page <= 1,
-            width="stretch",
-            key="gallery_previous",
-        ):
-            st.session_state.gallery_page -= 1
-            st.rerun(scope="fragment")
-    with nav_center:
-        selected_page = st.number_input(
-            "Page",
-            min_value=1,
-            max_value=total_pages,
-            value=st.session_state.gallery_page,
-            step=1,
-            key="gallery_page_input",
-        )
-        if selected_page != st.session_state.gallery_page:
-            st.session_state.gallery_page = int(selected_page)
-            st.rerun(scope="fragment")
-        st.caption(f"Page {st.session_state.gallery_page:,} of {total_pages:,} • {total_items:,} sightings")
-    with nav_right:
-        if st.button(
-            "Next →",
-            disabled=st.session_state.gallery_page >= total_pages,
-            width="stretch",
-            key="gallery_next",
-        ):
-            st.session_state.gallery_page += 1
-            st.rerun(scope="fragment")
-
     page_start = (st.session_state.gallery_page - 1) * page_size
     page_end = min(page_start + page_size, total_items)
     display_view = view.iloc[page_start:page_end]
@@ -738,14 +722,52 @@ def render_listing_and_viewer(
                 if temp_str or moon_phase:
                     meta_line = '<div style="margin-top: 0.35rem;">'
                     if temp_str:
-                        meta_line += f'<span class="card-temp">🌡️ {temp_str}</span>'
+                        meta_line += f'<span class="card-temp">Temperature {temp_str}</span>'
                     if moon_phase and moon_emoji:
-                        meta_line += f'<span class="card-moon">{moon_emoji} {moon_phase}</span>'
+                        meta_line += f'<span class="card-moon">Moon {moon_phase}</span>'
                     meta_line += '</div>'
                     st.markdown(meta_line, unsafe_allow_html=True)
                 if url:
-                    st.markdown(f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" style="font-size:0.85rem; color: var(--brand); font-weight: 600; text-decoration: none;">View in Drive ↗</a></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" class="card-link">View in Drive ↗</a></div>', unsafe_allow_html=True)
                 st.markdown("</div></div>", unsafe_allow_html=True)
 
-    st.caption(f"Showing {page_start + 1:,}–{page_end:,} of {total_items:,}")
+    st.markdown('<div class="pagination-shell"></div>', unsafe_allow_html=True)
+    nav_left, nav_center, nav_right = st.columns([1, 1.35, 1])
+    with nav_left:
+        if st.button(
+            "Previous",
+            disabled=st.session_state.gallery_page <= 1,
+            width="stretch",
+            key="gallery_previous",
+        ):
+            st.session_state.gallery_page -= 1
+            st.session_state.pop("gallery_page_jump", None)
+            st.rerun(scope="fragment")
+    with nav_center:
+        page_options = list(range(1, total_pages + 1))
+        selected_page = st.selectbox(
+            "Page",
+            options=page_options,
+            index=st.session_state.gallery_page - 1,
+            format_func=lambda page: f"Page {page} of {total_pages}",
+            key="gallery_page_jump",
+            label_visibility="collapsed",
+        )
+        if selected_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = int(selected_page)
+            st.rerun(scope="fragment")
+        st.markdown(
+            f'<div class="pagination-status">Showing {page_start + 1:,}–{page_end:,} of {total_items:,} sightings</div>',
+            unsafe_allow_html=True,
+        )
+    with nav_right:
+        if st.button(
+            "Next",
+            disabled=st.session_state.gallery_page >= total_pages,
+            width="stretch",
+            key="gallery_next",
+        ):
+            st.session_state.gallery_page += 1
+            st.session_state.pop("gallery_page_jump", None)
+            st.rerun(scope="fragment")
 
