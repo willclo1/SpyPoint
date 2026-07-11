@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from data_prep import clamp_temp_domain
-from drive_io import resolve_image_link
+from drive_io import resolve_page_images
 
 
 # =============================================================================
@@ -1054,11 +1054,11 @@ def render_listing_and_viewer(
     base: pd.DataFrame,
     section: str,
     include_other: bool,
-    image_index: Dict,
+    root_folder_id: str,
     drive_client_factory,
     download_bytes_func,
 ):
-    """Photo gallery with exact ranch wildlife card styling."""
+    """Render a paginated gallery and resolve only current-page images."""
     view = base.dropna(subset=["datetime"]).sort_values("datetime", ascending=False).copy()
 
     if section == "Wildlife" and not include_other:
@@ -1068,17 +1068,68 @@ def render_listing_and_viewer(
         st.info("No sightings match your filters")
         return
 
-    if "gallery_limit" not in st.session_state:
-        st.session_state.gallery_limit = 8
+    page_size = st.selectbox(
+        "Photos per page",
+        options=[8, 12, 20, 40],
+        index=1,
+        key="gallery_page_size",
+    )
+    total_items = len(view)
+    total_pages = max(1, (total_items + page_size - 1) // page_size)
 
-    display_view = view.head(st.session_state.gallery_limit)
+    if "gallery_page" not in st.session_state:
+        st.session_state.gallery_page = 1
+    st.session_state.gallery_page = min(max(1, st.session_state.gallery_page), total_pages)
+
+    nav_left, nav_center, nav_right = st.columns([1, 2, 1])
+    with nav_left:
+        if st.button(
+            "← Previous",
+            disabled=st.session_state.gallery_page <= 1,
+            width="stretch",
+            key="gallery_previous",
+        ):
+            st.session_state.gallery_page -= 1
+            st.rerun()
+    with nav_center:
+        selected_page = st.number_input(
+            "Page",
+            min_value=1,
+            max_value=total_pages,
+            value=st.session_state.gallery_page,
+            step=1,
+            key="gallery_page_input",
+        )
+        if selected_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = int(selected_page)
+            st.rerun()
+        st.caption(f"Page {st.session_state.gallery_page:,} of {total_pages:,} • {total_items:,} sightings")
+    with nav_right:
+        if st.button(
+            "Next →",
+            disabled=st.session_state.gallery_page >= total_pages,
+            width="stretch",
+            key="gallery_next",
+        ):
+            st.session_state.gallery_page += 1
+            st.rerun()
+
+    page_start = (st.session_state.gallery_page - 1) * page_size
+    page_end = min(page_start + page_size, total_items)
+    display_view = view.iloc[page_start:page_end]
+
+    page_items = tuple(
+        (str(row.camera).strip(), str(row.filename).strip())
+        for row in display_view[["camera", "filename"]].itertuples(index=False)
+    )
+    with st.spinner("Loading this page's photos..."):
+        page_images = resolve_page_images(root_folder_id, page_items)
 
     cols_per_row = 2
     rows = (len(display_view) + cols_per_row - 1) // cols_per_row
 
     for row_idx in range(rows):
         cols = st.columns(cols_per_row, gap="large")
-
         for col_idx in range(cols_per_row):
             item_idx = row_idx * cols_per_row + col_idx
             if item_idx >= len(display_view):
@@ -1091,42 +1142,29 @@ def render_listing_and_viewer(
             temp = row.get("temp_f")
             moon_emoji = row.get("moon_emoji", "")
             moon_phase = row.get("moon_phase_clean", "")
-
-            if section == "Wildlife":
-                label = row.get("wildlife_label", "Other")
-            else:
-                label = (row.get("event_type", "")).capitalize()
-
+            label = row.get("wildlife_label", "Other") if section == "Wildlife" else str(row.get("event_type", "")).capitalize()
             time_str = dt.strftime("%b %d, %I:%M %p") if pd.notna(dt) else "Unknown time"
             temp_str = f"{int(temp)}°F" if pd.notna(temp) else ""
+            hit = page_images.get((cam, fn), {})
+            file_id = hit.get("id", "")
+            url = hit.get("webViewLink", "")
 
             with cols[col_idx]:
-                url, fid = resolve_image_link(cam, fn, image_index)
-
                 st.markdown('<div class="sighting-card">', unsafe_allow_html=True)
-
-                if fid:
-                    img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
+                if file_id:
+                    img_bytes = load_thumbnail_cached(file_id, drive_client_factory, download_bytes_func)
                     if img_bytes:
                         st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
                         st.image(img_bytes, width="stretch")
                         st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown(
-                            '<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>',
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown('<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(
-                        '<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>',
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown('<div class="card-thumbnail"><div style="font-size:2.2rem; opacity:0.35;">📷</div></div>', unsafe_allow_html=True)
 
                 st.markdown('<div class="card-content">', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-title">{label} • {cam}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="card-meta">{time_str}</div>', unsafe_allow_html=True)
-                
-                # Temperature and moon phase on same line
                 if temp_str or moon_phase:
                     meta_line = '<div style="margin-top: 0.35rem;">'
                     if temp_str:
@@ -1135,21 +1173,9 @@ def render_listing_and_viewer(
                         meta_line += f'<span class="card-moon">{moon_emoji} {moon_phase}</span>'
                     meta_line += '</div>'
                     st.markdown(meta_line, unsafe_allow_html=True)
-
                 if url:
-                    st.markdown(
-                        f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" style="font-size:0.85rem; color: var(--sage); font-weight: 600; text-decoration: none; transition: var(--transition);">View in Drive ↗</a></div>',
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown(f'<div style="margin-top:0.7rem;"><a href="{url}" target="_blank" style="font-size:0.85rem; color: var(--sage); font-weight: 600; text-decoration: none;">View in Drive ↗</a></div>', unsafe_allow_html=True)
+                st.markdown("</div></div>", unsafe_allow_html=True)
 
-                st.markdown("</div>", unsafe_allow_html=True)  # card-content
-                st.markdown("</div>", unsafe_allow_html=True)  # sighting-card
+    st.caption(f"Showing {page_start + 1:,}–{page_end:,} of {total_items:,}")
 
-    # Load More button
-    if len(view) > st.session_state.gallery_limit:
-        remaining = len(view) - st.session_state.gallery_limit
-        st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
-        if st.button(f"Load More ({remaining} remaining)", key=f"load_more_{section}"):
-            st.session_state.gallery_limit += 8
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)

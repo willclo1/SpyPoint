@@ -1,6 +1,7 @@
 # drive_io.py
 import io
-from typing import Dict, Tuple
+from collections import defaultdict
+from typing import Dict, Iterable, Tuple
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -107,6 +108,75 @@ def index_images_by_camera(
                 break
 
     return image_index
+
+
+def _escape_drive_query(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _chunks(values: list[str], size: int = 40) -> Iterable[list[str]]:
+    for start in range(0, len(values), size):
+        yield values[start:start + size]
+
+
+@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+def resolve_page_images(
+    root_folder_id: str,
+    page_items: tuple[tuple[str, str], ...],
+) -> Dict[Tuple[str, str], Dict[str, str]]:
+    """Resolve only the Drive files needed for the current gallery page.
+
+    The result is keyed by ``(camera, filename)``. Camera folders are cached,
+    and filename queries are batched per camera so the app never needs to list
+    every image in a folder.
+    """
+    requested: dict[str, set[str]] = defaultdict(set)
+    for camera, filename in page_items:
+        camera = (camera or "").strip()
+        filename = (filename or "").strip()
+        if camera and filename:
+            requested[camera].add(filename)
+
+    if not requested:
+        return {}
+
+    service = _drive_client()
+    camera_folders = list_camera_folders(root_folder_id)
+    resolved: Dict[Tuple[str, str], Dict[str, str]] = {}
+
+    for camera, filenames in requested.items():
+        folder_id = camera_folders.get(camera)
+        if not folder_id:
+            continue
+
+        ordered_names = sorted(filenames)
+        for filename_batch in _chunks(ordered_names):
+            name_clause = " or ".join(
+                f"name='{_escape_drive_query(filename)}'"
+                for filename in filename_batch
+            )
+            query = (
+                f"'{folder_id}' in parents and trashed=false "
+                f"and ({name_clause})"
+            )
+            response = service.files().list(
+                q=query,
+                fields="files(id,name,webViewLink,mimeType)",
+                pageSize=len(filename_batch),
+            ).execute()
+
+            for file_info in response.get("files", []):
+                filename = (file_info.get("name") or "").strip()
+                file_id = (file_info.get("id") or "").strip()
+                if not filename or not file_id:
+                    continue
+                resolved[(camera, filename)] = {
+                    "id": file_id,
+                    "webViewLink": (file_info.get("webViewLink") or "").strip()
+                    or drive_view_url(file_id),
+                }
+
+    return resolved
 
 
 def resolve_image_link(camera: str, filename: str, image_index: dict) -> Tuple[str, str]:

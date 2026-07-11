@@ -4,7 +4,6 @@ import streamlit as st
 
 from data_prep import nice_last_modified, prep_df
 from drive_io import (
-    index_images_by_camera,
     load_events_from_drive,
     _drive_client,
     _download_drive_file_bytes,
@@ -116,8 +115,8 @@ st.markdown(
 # ---------------------------
 if "current_view" not in st.session_state:
     st.session_state.current_view = "dashboard"
-if "gallery_limit" not in st.session_state:
-    st.session_state.gallery_limit = 8
+if "gallery_page" not in st.session_state:
+    st.session_state.gallery_page = 1
 
 
 def _require_secret(path: str):
@@ -532,20 +531,28 @@ else:  # photos view
     if section_photos == "Wildlife" and species_filter_photos:
         base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
 
-    st.info(f"Showing {len(base_photos):,} sightings")
+    st.info(f"{len(base_photos):,} sightings match the current filters")
 
-    visible_cameras = tuple(sorted(base_photos["camera"].dropna().unique().tolist()))
-    with st.spinner("Loading photo index..."):
-        image_index = index_images_by_camera(ROOT_FOLDER_ID, visible_cameras)
-
-    if not image_index:
-        st.warning("No matching camera folders or photos were found in Google Drive.")
+    filter_signature = (
+        section_photos,
+        tuple(selected_cameras_photos),
+        str(start_photos),
+        str(end_photos),
+        temp_range_photos,
+        tuple(selected_moon_phases_photos),
+        tuple(species_filter_photos),
+        include_other_photos,
+    )
+    if st.session_state.get("photo_filter_signature") != filter_signature:
+        st.session_state.photo_filter_signature = filter_signature
+        st.session_state.gallery_page = 1
+        st.session_state.pop("gallery_page_input", None)
 
     render_listing_and_viewer(
         base=base_photos,
         section=section_photos,
         include_other=include_other_photos,
-        image_index=image_index,
+        root_folder_id=ROOT_FOLDER_ID,
         drive_client_factory=_drive_client,
         download_bytes_func=_download_drive_file_bytes,
     )
