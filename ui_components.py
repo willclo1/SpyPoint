@@ -324,6 +324,31 @@ def inject_css():
         .card-temp, .card-moon { display:inline-flex; margin-right:.45rem; margin-top:.45rem; padding:.28rem .48rem; border-radius:999px; background:rgba(255,255,255,.045); color:var(--muted); font-size:.75rem; }
 
         .gallery-summary { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin:.6rem 0 1rem; color:var(--muted); font-size:.86rem; }
+
+        [data-testid="stSegmentedControl"] {
+            position: sticky; top: .65rem; z-index: 20;
+            padding: .4rem; margin: .15rem 0 1rem;
+            border: 1px solid var(--line); border-radius: 16px;
+            background: rgba(13, 21, 17, .88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        [data-testid="stSegmentedControl"] button {
+            min-height: 42px; border-radius: 11px !important;
+            transition: background .16s ease, color .16s ease, transform .16s ease !important;
+        }
+        [data-testid="stSegmentedControl"] button:hover { transform: translateY(-1px); }
+        [data-testid="stSegmentedControl"] button[aria-checked="true"] {
+            background: var(--accent-soft) !important;
+            color: var(--text) !important;
+        }
+        [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {
+            animation: ranch-fade-in .16s ease-out;
+        }
+        @keyframes ranch-fade-in {
+            from { opacity: .72; transform: translateY(2px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .embed-wrap { overflow:hidden; border-radius:var(--radius-lg); border:1px solid var(--line); background:var(--surface); }
         .small-muted { color:var(--faint); font-size:.78rem; }
 
@@ -685,7 +710,7 @@ def render_listing_and_viewer(
             key="gallery_previous",
         ):
             st.session_state.gallery_page -= 1
-            st.rerun()
+            st.rerun(scope="fragment")
     with nav_center:
         selected_page = st.number_input(
             "Page",
@@ -697,7 +722,7 @@ def render_listing_and_viewer(
         )
         if selected_page != st.session_state.gallery_page:
             st.session_state.gallery_page = int(selected_page)
-            st.rerun()
+            st.rerun(scope="fragment")
         st.caption(f"Page {st.session_state.gallery_page:,} of {total_pages:,} • {total_items:,} sightings")
     with nav_right:
         if st.button(
@@ -707,7 +732,7 @@ def render_listing_and_viewer(
             key="gallery_next",
         ):
             st.session_state.gallery_page += 1
-            st.rerun()
+            st.rerun(scope="fragment")
 
     page_start = (st.session_state.gallery_page - 1) * page_size
     page_end = min(page_start + page_size, total_items)
