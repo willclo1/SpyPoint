@@ -262,6 +262,35 @@ def inject_css():
             font-family: 'DM Sans', sans-serif !important;
         }
         
+        .data-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            margin: 0.25rem 0 1.25rem;
+            padding: 0.55rem 0.85rem;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(74, 93, 63, 0.16);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .data-status span {
+            color: var(--text-muted);
+        }
+
+        [data-testid="stMetric"] {
+            background: linear-gradient(145deg, rgba(61, 51, 44, 0.42), rgba(45, 37, 32, 0.7));
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.1rem;
+            box-shadow: var(--shadow-soft);
+        }
+
+        [data-testid="stMetricLabel"] {
+            color: var(--text-muted);
+        }
+
         /* Buttons - EXACT website style */
         .stButton > button {
             background: linear-gradient(145deg, rgba(61, 51, 44, 0.6) 0%, rgba(45, 37, 32, 0.8) 100%) !important;
@@ -782,7 +811,7 @@ def render_timeline(base: pd.DataFrame, section: str):
                 .properties(height=350)
             )
             
-            st.altair_chart(apply_chart_theme(chart), use_container_width=True)
+            st.altair_chart(apply_chart_theme(chart), width="stretch")
             st.caption(f"Showing individual trend lines for {unique_species} species")
             return
     
@@ -818,7 +847,7 @@ def render_timeline(base: pd.DataFrame, section: str):
         .properties(height=350)
     )
     
-    st.altair_chart(apply_chart_theme(chart), use_container_width=True)
+    st.altair_chart(apply_chart_theme(chart), width="stretch")
 
 
 def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_style: str, time_gran: str):
@@ -990,31 +1019,31 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             cA, cB = st.columns(2)
             with cA:
                 st.markdown("**By Time of Day**")
-                st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+                st.altair_chart(apply_chart_theme(time_chart), width="stretch")
             with cB:
                 st.markdown("**By Day of Week**")
-                st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+                st.altair_chart(apply_chart_theme(day_chart), width="stretch")
             
             st.markdown("**By Moon Phase**")
-            st.altair_chart(apply_chart_theme(moon_chart), use_container_width=True)
+            st.altair_chart(apply_chart_theme(moon_chart), width="stretch")
         else:
             # No moon data - just show time and day
             cA, cB = st.columns(2)
             with cA:
                 st.markdown("**By Time of Day**")
-                st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+                st.altair_chart(apply_chart_theme(time_chart), width="stretch")
             with cB:
                 st.markdown("**By Day of Week**")
-                st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+                st.altair_chart(apply_chart_theme(day_chart), width="stretch")
     else:
         # No moon_phase_clean column - just show time and day
         cA, cB = st.columns(2)
         with cA:
             st.markdown("**By Time of Day**")
-            st.altair_chart(apply_chart_theme(time_chart), use_container_width=True)
+            st.altair_chart(apply_chart_theme(time_chart), width="stretch")
         with cB:
             st.markdown("**By Day of Week**")
-            st.altair_chart(apply_chart_theme(day_chart), use_container_width=True)
+            st.altair_chart(apply_chart_theme(day_chart), width="stretch")
 
 
 # =============================================================================
@@ -1080,7 +1109,7 @@ def render_listing_and_viewer(
                     img_bytes = load_thumbnail_cached(fid, drive_client_factory, download_bytes_func)
                     if img_bytes:
                         st.markdown('<div class="card-thumbnail">', unsafe_allow_html=True)
-                        st.image(img_bytes, use_container_width=True)
+                        st.image(img_bytes, width="stretch")
                         st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.markdown(

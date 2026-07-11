@@ -113,49 +113,61 @@ def standardize_moon_phase(phase: str) -> str:
 
 
 def prep_df(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Trust pipeline columns:
-      - event_type
-      - species_clean
-      - species_group
-      - moon_phase (NEW)
-      - moon_illumination (NEW)
-      - moon_age_days (NEW)
-    """
+    """Normalize event data with vectorized pandas operations."""
     out = df.copy()
 
-    for col in ["camera", "filename", "event_type", "species_clean", "species_group", 
-                "date", "time", "temp_f", "moon_phase", "moon_illumination", "moon_age_days"]:
+    required = [
+        "camera", "filename", "event_type", "species_clean", "species_group",
+        "date", "time", "temp_f", "moon_phase", "moon_illumination", "moon_age_days",
+    ]
+    for col in required:
         if col not in out.columns:
             out[col] = ""
 
-    out["camera"] = out["camera"].fillna("").astype(str).str.strip()
-    out["filename"] = out["filename"].fillna("").astype(str).str.strip()
+    text_cols = [
+        "camera", "filename", "event_type", "species_clean", "species_group",
+        "date", "time", "moon_phase",
+    ]
+    for col in text_cols:
+        out[col] = out[col].fillna("").astype(str).str.strip()
 
-    out["event_type"] = (
-        out["event_type"].fillna("").astype(str).str.strip().str.lower()
-        .replace({"person": "human", "people": "human"})
-    )
-
+    out["event_type"] = out["event_type"].str.lower().replace({"person": "human", "people": "human"})
     out["temp_f"] = pd.to_numeric(out["temp_f"], errors="coerce")
-    out["datetime"] = build_datetime(out)
-
-    out["species_clean"] = out["species_clean"].fillna("").astype(str).str.strip()
-    out["species_group"] = out["species_group"].fillna("").astype(str).str.strip()
-
-    # Wildlife label preference: group -> clean -> Other
-    out["wildlife_label"] = out["species_group"]
-    out.loc[out["wildlife_label"] == "", "wildlife_label"] = out["species_clean"]
-    out.loc[out["wildlife_label"] == "", "wildlife_label"] = "Other"
-
-    # Process moon phase data
-    out["moon_phase"] = out["moon_phase"].fillna("").astype(str).str.strip()
-    out["moon_phase_clean"] = out["moon_phase"].apply(standardize_moon_phase)
-    out["moon_emoji"] = out["moon_phase"].apply(get_moon_emoji)
     out["moon_illumination"] = pd.to_numeric(out["moon_illumination"], errors="coerce")
     out["moon_age_days"] = pd.to_numeric(out["moon_age_days"], errors="coerce")
+    out["datetime"] = build_datetime(out)
 
-    out["event_id"] = out.apply(make_event_id, axis=1)
-    out["friendly_name"] = out.apply(make_friendly_name, axis=1)
+    out["wildlife_label"] = out["species_group"].where(out["species_group"].ne(""), out["species_clean"])
+    out["wildlife_label"] = out["wildlife_label"].replace("", "Other")
+
+    phase_map = {
+        "new moon": "New Moon", "new": "New Moon",
+        "waxing crescent": "Waxing Crescent", "first quarter": "First Quarter",
+        "waxing gibbous": "Waxing Gibbous", "full moon": "Full Moon", "full": "Full Moon",
+        "waning gibbous": "Waning Gibbous", "last quarter": "Last Quarter",
+        "third quarter": "Last Quarter", "waning crescent": "Waning Crescent",
+    }
+    emoji_map = {
+        "new moon": "🌑", "new": "🌑", "waxing crescent": "🌒",
+        "first quarter": "🌓", "waxing gibbous": "🌔", "full moon": "🌕",
+        "full": "🌕", "waning gibbous": "🌖", "last quarter": "🌗",
+        "third quarter": "🌗", "waning crescent": "🌘",
+    }
+    phase_key = out["moon_phase"].str.lower()
+    out["moon_phase_clean"] = phase_key.map(phase_map).fillna(out["moon_phase"].str.title())
+    out["moon_emoji"] = phase_key.map(emoji_map).fillna("🌙")
+    out.loc[out["moon_phase"].eq(""), ["moon_phase_clean", "moon_emoji"]] = ""
+
+    identity = (
+        out["camera"] + "|" + out["filename"] + "|" + out["date"] + "|" + out["time"]
+    )
+    out["event_id"] = identity.map(lambda value: hashlib.md5(value.encode("utf-8")).hexdigest()[:10])
+
+    when = out["datetime"].dt.strftime("%b %d %I:%M %p").fillna("Unknown time")
+    label = out["wildlife_label"].copy()
+    human_vehicle = out["event_type"].isin(["human", "vehicle"])
+    label.loc[human_vehicle] = out.loc[human_vehicle, "event_type"].str.capitalize()
+    suffix = out["filename"].str[-8:]
+    out["friendly_name"] = when + " • " + out["camera"].replace("", "unknown") + " • " + label + " • " + suffix
 
     return out

@@ -14,6 +14,7 @@ def drive_view_url(file_id: str) -> str:
     return f"https://drive.google.com/file/d/{file_id}/view"
 
 
+@st.cache_resource
 def _drive_client():
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
@@ -64,9 +65,15 @@ def list_camera_folders(root_folder_id: str) -> Dict[str, str]:
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS)
-def index_images_by_camera(root_folder_id: str) -> Dict[str, Dict[str, Dict[str, str]]]:
+def index_images_by_camera(
+    root_folder_id: str,
+    camera_names: tuple[str, ...] = (),
+) -> Dict[str, Dict[str, Dict[str, str]]]:
     service = _drive_client()
     cam_folders = list_camera_folders(root_folder_id)
+    if camera_names:
+        requested = set(camera_names)
+        cam_folders = {name: fid for name, fid in cam_folders.items() if name in requested}
 
     image_index: Dict[str, Dict[str, Dict[str, str]]] = {}
     for cam_name, cam_folder_id in cam_folders.items():

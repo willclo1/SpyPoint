@@ -1,4 +1,5 @@
 # streamlit_app.py
+import pandas as pd
 import streamlit as st
 
 from data_prep import nice_last_modified, prep_df
@@ -129,6 +130,11 @@ def _require_secret(path: str):
     return cur
 
 
+@st.cache_data(show_spinner=False)
+def prepare_events(raw_df):
+    return prep_df(raw_df)
+
+
 DRIVE_FILE_ID = _require_secret("gdrive.file_id")
 ROOT_FOLDER_ID = _require_secret("gdrive.root_folder_id")
 CACHE_TTL_SECONDS = int(st.secrets.get("cache_ttl_seconds", 6 * 60 * 60))
@@ -155,18 +161,9 @@ st.markdown(
 # ---------------------------
 with st.spinner("Loading events..."):
     raw = load_events_from_drive(DRIVE_FILE_ID)
-df = prep_df(raw)
+df = prepare_events(raw)
 
 last_mod_pretty = nice_last_modified(raw.attrs.get("drive_modified", ""))
-
-with st.spinner("Indexing photos..."):
-    image_index = index_images_by_camera(ROOT_FOLDER_ID)
-
-if not image_index:
-    st.warning(
-        "No camera folders found. Ensure `gdrive.root_folder_id` points to the folder containing camera subfolders."
-    )
-
 
 # ---------------------------
 # TOP VIEW SELECTOR (3 tabs)
@@ -178,7 +175,7 @@ nav1, nav2, nav3 = st.columns([1, 1, 1], gap="large")
 with nav1:
     if st.button(
         "📊 Data Dashboard",
-        use_container_width=True,
+        width="stretch",
         type="primary" if st.session_state.current_view == "dashboard" else "secondary",
         key="nav_dashboard",
     ):
@@ -188,7 +185,7 @@ with nav1:
 with nav2:
     if st.button(
         "📸 Photo Browser",
-        use_container_width=True,
+        width="stretch",
         type="primary" if st.session_state.current_view == "photos" else "secondary",
         key="nav_photos",
     ):
@@ -198,7 +195,7 @@ with nav2:
 with nav3:
     if st.button(
         "🦌 Advanced Gallery",
-        use_container_width=True,
+        width="stretch",
         type="primary" if st.session_state.current_view == "gallery" else "secondary",
         key="nav_gallery",
     ):
@@ -216,7 +213,11 @@ if st.session_state.current_view == "dashboard":
     st.title("Ranch Activity Dashboard")
     st.caption("Wildlife, people, and vehicle monitoring system")
 
-    st.success(f"Loaded **{len(df):,}** events • Last updated: **{last_mod_pretty}**")
+    st.markdown(
+        f'<div class="data-status"><strong>{len(df):,}</strong> events available '
+        f'<span>• Updated {last_mod_pretty}</span></div>',
+        unsafe_allow_html=True,
+    )
 
     # ---------------------------
     # Sidebar filters for Data Dashboard ONLY
@@ -299,6 +300,9 @@ if st.session_state.current_view == "dashboard":
 
         st.markdown("---")
         st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+        if st.button("Refresh data", key=f"refresh_{st.session_state.current_view}", width="stretch"):
+            st.cache_data.clear()
+            st.rerun()
 
     # ---------------------------
     # Apply filters
@@ -318,7 +322,9 @@ if st.session_state.current_view == "dashboard":
         base = base[base["event_type"] == "vehicle"].copy()
 
     start, end = date_range
-    base = base[(base["datetime"].dt.date >= start) & (base["datetime"].dt.date <= end)]
+    start_ts = pd.Timestamp(start)
+    end_ts = pd.Timestamp(end) + pd.Timedelta(days=1)
+    base = base[(base["datetime"] >= start_ts) & (base["datetime"] < end_ts)]
 
     if temp_range is not None:
         lo, hi = temp_range
@@ -338,10 +344,16 @@ if st.session_state.current_view == "dashboard":
     # ---------------------------
     # KPIs
     # ---------------------------
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Total Sightings", f"{len(base):,}")
-    k2.metric("Date Range Start", str(start))
-    k3.metric("Date Range End", str(end))
+    active_cameras = base["camera"].nunique()
+    avg_temp = base["temp_f"].mean()
+    peak_hour = base["datetime"].dt.hour.mode()
+    peak_label = "—" if peak_hour.empty else pd.Timestamp(2000, 1, 1, int(peak_hour.iloc[0])).strftime("%-I %p")
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Sightings", f"{len(base):,}")
+    k2.metric("Active Cameras", f"{active_cameras:,}")
+    k3.metric("Average Temp", "—" if pd.isna(avg_temp) else f"{avg_temp:.0f}°F")
+    k4.metric("Peak Activity", peak_label)
 
     st.markdown("---")
 
@@ -367,6 +379,9 @@ elif st.session_state.current_view == "gallery":
         st.markdown(f"[Open in new tab ↗]({ADV_GALLERY_URL})")
         st.markdown("---")
         st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+        if st.button("Refresh data", key=f"refresh_{st.session_state.current_view}", width="stretch"):
+            st.cache_data.clear()
+            st.rerun()
 
     st.title("Advanced Gallery")
     st.caption("Grouped sightings as events")
@@ -382,6 +397,9 @@ else:  # photos view
         st.info("📸 Photo Browser filters are shown in the main area above")
         st.markdown("---")
         st.markdown(f'<div class="small-muted">Cache TTL: {CACHE_TTL_SECONDS//3600}h</div>', unsafe_allow_html=True)
+        if st.button("Refresh data", key=f"refresh_{st.session_state.current_view}", width="stretch"):
+            st.cache_data.clear()
+            st.rerun()
 
     st.title("Photo Browser")
     st.caption("Browse and view individual sightings")
@@ -497,8 +515,10 @@ else:  # photos view
         base_photos = base_photos[base_photos["event_type"] == "vehicle"].copy()
 
     start_photos, end_photos = date_range_photos
+    start_photos_ts = pd.Timestamp(start_photos)
+    end_photos_ts = pd.Timestamp(end_photos) + pd.Timedelta(days=1)
     base_photos = base_photos[
-        (base_photos["datetime"].dt.date >= start_photos) & (base_photos["datetime"].dt.date <= end_photos)
+        (base_photos["datetime"] >= start_photos_ts) & (base_photos["datetime"] < end_photos_ts)
     ]
 
     if temp_range_photos is not None:
@@ -513,6 +533,13 @@ else:  # photos view
         base_photos = base_photos[base_photos["wildlife_label"].isin(species_filter_photos)]
 
     st.info(f"Showing {len(base_photos):,} sightings")
+
+    visible_cameras = tuple(sorted(base_photos["camera"].dropna().unique().tolist()))
+    with st.spinner("Loading photo index..."):
+        image_index = index_images_by_camera(ROOT_FOLDER_ID, visible_cameras)
+
+    if not image_index:
+        st.warning("No matching camera folders or photos were found in Google Drive.")
 
     render_listing_and_viewer(
         base=base_photos,
