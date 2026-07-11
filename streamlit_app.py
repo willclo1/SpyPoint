@@ -66,7 +66,7 @@ def render_header(updated: str):
         f"""
         <div class="app-header">
           <div class="brand-wrap">
-            <div class="brand-mark">🦌</div>
+            <div class="brand-mark">RE</div>
             <div>
               <div class="brand-name">Ranch Events</div>
               <div class="brand-kicker">Wildlife intelligence</div>
@@ -101,6 +101,46 @@ def render_section(title: str, copy: str):
         unsafe_allow_html=True,
     )
 
+
+
+def render_event_register(base: pd.DataFrame, section: str):
+    """Render a compact, readable event register for the filtered result set."""
+    columns = ["datetime", "camera", "temp_f", "moon_phase_clean", "filename"]
+    if section == "Wildlife":
+        columns.insert(2, "wildlife_label")
+    available = [column for column in columns if column in base.columns]
+    register = base[available].sort_values("datetime", ascending=False).head(250).copy()
+    rename = {
+        "datetime": "Date and time",
+        "camera": "Camera",
+        "wildlife_label": "Animal",
+        "temp_f": "Temperature",
+        "moon_phase_clean": "Moon phase",
+        "filename": "File",
+    }
+    register = register.rename(columns=rename)
+    if "Date and time" in register:
+        register["Date and time"] = register["Date and time"].dt.strftime("%b %d, %Y  %I:%M %p")
+    if "Temperature" in register:
+        register["Temperature"] = register["Temperature"].map(
+            lambda value: "—" if pd.isna(value) else f"{value:.0f} °F"
+        )
+    st.dataframe(
+        register,
+        width="stretch",
+        height=min(520, 38 + 35 * max(4, min(len(register), 13))),
+        hide_index=True,
+        column_config={
+            "Date and time": st.column_config.TextColumn(width="medium"),
+            "Camera": st.column_config.TextColumn(width="small"),
+            "Animal": st.column_config.TextColumn(width="small"),
+            "Temperature": st.column_config.TextColumn(width="small"),
+            "Moon phase": st.column_config.TextColumn(width="medium"),
+            "File": st.column_config.TextColumn(width="medium"),
+        },
+    )
+    if len(base) > len(register):
+        st.caption(f"Showing the 250 most recent of {len(base):,} matching events.")
 
 def render_insights(base: pd.DataFrame, section: str):
     if base.empty:
@@ -260,6 +300,10 @@ def render_app_view():
         render_timeline(base, section)
         render_section("Behavior patterns", "Compare activity by hour, weekday, and moon phase.")
         render_patterns(base, section, include_other, bar_style, time_gran)
+
+        render_section("Event register", "A precise, scan-friendly record of the most recent matching events.")
+        with st.expander("View event register", expanded=False):
+            render_event_register(base, section)
 
     elif st.session_state.current_view == "photos":
         render_hero(
