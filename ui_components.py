@@ -128,7 +128,7 @@ def apply_chart_theme(chart: alt.Chart) -> alt.Chart:
             labelFont=_CHART_FONT,
             titleFont=_CHART_FONT,
         )
-        .configure_title(color=_CHART_INK, font=_CHART_FONT, fontSize=14, fontWeight=650, anchor="start")
+        .configure_title(color=_CHART_INK, font=_CHART_FONT, fontSize=14, fontWeight=700, anchor="start")
     )
 
 
