@@ -408,11 +408,13 @@ def inject_css():
         [data-testid="stDataFrame"] [role="columnheader"] { background:var(--table-header) !important; color:var(--text) !important; font-weight:660 !important; }
         [data-testid="stDataFrame"] [role="gridcell"] { color:var(--text) !important; border-color:var(--border) !important; }
 
-        /* Chart containers get a subtle framed surface */
-        [data-testid="stVegaLiteChart"], [data-testid="stAltairChart"] {
-            padding:.75rem .75rem .35rem; border:1px solid var(--border); border-radius:var(--radius-lg);
-            background:linear-gradient(180deg, var(--surface-raised), var(--surface)); box-shadow:var(--shadow-sm), inset 0 1px 0 var(--hairline);
-        }
+        /* Keep charts responsive: the chart element is what Vega measures for
+           sizing, so it must NOT carry padding/border of its own or the plot
+           renders full-width and then overflows/clips. Only constrain width. */
+        [data-testid="stVegaLiteChart"], [data-testid="stAltairChart"] { max-width:100%; }
+        [data-testid="stVegaLiteChart"] > div, [data-testid="stAltairChart"] > div { width:100% !important; }
+        [data-testid="stVegaLiteChart"] canvas, [data-testid="stVegaLiteChart"] svg,
+        [data-testid="stAltairChart"] canvas, [data-testid="stAltairChart"] svg { max-width:100% !important; }
 
         @media (max-width:900px) {
             .main .block-container { padding:.75rem .9rem 3rem; }
