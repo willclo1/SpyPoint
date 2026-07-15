@@ -102,6 +102,41 @@ def render_section(title: str, copy: str):
     )
 
 
+def events_to_csv(frame: pd.DataFrame) -> bytes:
+    """Serialize the filtered events to a tidy, human-friendly CSV."""
+    columns = ["datetime", "camera", "event_type", "wildlife_label", "temp_f", "moon_phase_clean", "filename"]
+    available = [column for column in columns if column in frame.columns]
+    export = frame[available]
+    if "datetime" in export.columns:
+        export = export.sort_values("datetime", ascending=False)
+    return export.to_csv(index=False).encode("utf-8")
+
+
+def render_filter_summary(section, cameras, camera_options, date_range, temp_range, temp_limits, moon_phases, species):
+    """Show a compact, at-a-glance row of the filters currently applied."""
+    chips = [("Category", section)]
+    if cameras and len(cameras) < len(camera_options):
+        chips.append(("Cameras", f"{len(cameras)} of {len(camera_options)}"))
+    else:
+        chips.append(("Cameras", "All"))
+    try:
+        start, end = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+        chips.append(("Dates", f"{start:%b %d} – {end:%b %d, %Y}"))
+    except Exception:
+        pass
+    if temp_range and temp_limits and tuple(temp_range) != tuple(temp_limits):
+        chips.append(("Temp", f"{int(temp_range[0])}–{int(temp_range[1])} °F"))
+    if moon_phases:
+        chips.append(("Moon", f"{len(moon_phases)} phase" + ("" if len(moon_phases) == 1 else "s")))
+    if species:
+        chips.append(("Animals", f"{len(species)} selected"))
+    markup = "".join(
+        f'<span class="filter-chip"><span class="fc-key">{html.escape(str(key))}</span>{html.escape(str(value))}</span>'
+        for key, value in chips
+    )
+    st.markdown(f'<div class="filter-summary">{markup}</div>', unsafe_allow_html=True)
+
+
 
 def render_event_register(base: pd.DataFrame, section: str):
     """Render a compact, readable event register for the filtered result set."""
@@ -139,8 +174,19 @@ def render_event_register(base: pd.DataFrame, section: str):
             "File": st.column_config.TextColumn(width="medium"),
         },
     )
-    if len(base) > len(register):
-        st.caption(f"Showing the 250 most recent of {len(base):,} matching events.")
+    caption_col, download_col = st.columns([2, 1])
+    with caption_col:
+        if len(base) > len(register):
+            st.caption(f"Showing the 250 most recent of {len(base):,} matching events.")
+    with download_col:
+        st.download_button(
+            "Download all matches (CSV)",
+            data=events_to_csv(base),
+            file_name=f"ranch-events-{section.lower()}.csv",
+            mime="text/csv",
+            width="stretch",
+            key=f"download_register_{section}",
+        )
 
 def render_insights(base: pd.DataFrame, section: str):
     if base.empty:
@@ -186,6 +232,22 @@ if "gallery_page" not in st.session_state:
 with st.sidebar:
     st.markdown("### Data status")
     st.metric("Recorded events", f"{len(df):,}")
+
+    valid_dt = df["datetime"].dropna() if "datetime" in df.columns else pd.Series(dtype="datetime64[ns]")
+    coverage = f"{valid_dt.min():%b %d, %Y} – {valid_dt.max():%b %d, %Y}" if not valid_dt.empty else "—"
+    camera_count = df.loc[df["camera"].astype(str).str.strip() != "", "camera"].nunique() if "camera" in df.columns else 0
+    species_count = df.loc[df["event_type"] == "animal", "wildlife_label"].nunique() if "wildlife_label" in df.columns else 0
+    st.markdown(
+        f"""
+        <div class="sidebar-facts">
+          <div class="fact-row"><span class="fact-label">Coverage</span><span class="fact-value">{html.escape(coverage)}</span></div>
+          <div class="fact-row"><span class="fact-label">Cameras</span><span class="fact-value">{camera_count:,}</span></div>
+          <div class="fact-row"><span class="fact-label">Species</span><span class="fact-value">{species_count:,}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.caption(f"Last updated {last_modified}")
     if st.button("Refresh data", width="stretch"):
         st.cache_data.clear()
@@ -272,6 +334,7 @@ def render_app_view():
                 with row3[2]:
                     species_filter = st.multiselect("Animals", species_options, key="dash_species")
 
+        render_filter_summary(section, selected_cameras, camera_options, date_range, temp_range, temp_limits, selected_moons, species_filter)
         base = apply_common_filters(df, selected_cameras, date_range, temp_range, selected_moons)
         event_type = {"Wildlife": "animal", "People": "human", "Vehicles": "vehicle"}[section]
         base = base[base["event_type"] == event_type]
@@ -342,6 +405,7 @@ def render_app_view():
                 species_options = sorted(value for value in pool["wildlife_label"].unique().tolist() if value)
                 species_filter = st.multiselect("Animals", species_options, key="photo_species")
 
+        render_filter_summary(section, selected_cameras, camera_options, date_range, temp_range, temp_limits, selected_moons, species_filter)
         base = apply_common_filters(df, selected_cameras, date_range, temp_range, selected_moons)
         event_type = {"Wildlife": "animal", "People": "human", "Vehicles": "vehicle"}[section]
         base = base[base["event_type"] == event_type]
@@ -358,6 +422,17 @@ def render_app_view():
             st.session_state.pop("gallery_page_jump", None)
 
         st.markdown(f'<div class="gallery-summary"><span><strong>{len(base):,}</strong> matching sightings</span><span>Newest first</span></div>', unsafe_allow_html=True)
+        if not base.empty:
+            _, dl_col = st.columns([3, 1])
+            with dl_col:
+                st.download_button(
+                    "Download list (CSV)",
+                    data=events_to_csv(base),
+                    file_name=f"ranch-photos-{section.lower()}.csv",
+                    mime="text/csv",
+                    width="stretch",
+                    key=f"download_photos_{section}",
+                )
         render_listing_and_viewer(
             base=base,
             section=section,

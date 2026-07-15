@@ -336,17 +336,17 @@ def inject_css():
         .insight-value { color:var(--text); font-size:1.02rem; font-weight:750; margin-top:.36rem; letter-spacing:-.01em; }
         .insight-note { color:var(--text-soft); font-size:.78rem; margin-top:.24rem; }
 
-        .stButton > button, .stLinkButton > a {
+        .stButton > button, .stLinkButton > a, .stDownloadButton > button {
             min-height:40px; border-radius:9px !important; border:1px solid var(--border-strong) !important;
             background:var(--surface) !important; color:var(--text) !important; font-weight:650 !important;
             box-shadow:var(--shadow-sm) !important; transition:transform .1s ease, background .14s ease, border-color .14s ease, color .14s ease !important;
         }
-        .stButton > button:hover, .stLinkButton > a:hover { border-color:var(--accent) !important; background:var(--accent-soft) !important; color:var(--accent-hover) !important; transform:translateY(-1px); }
-        .stButton > button:active, .stLinkButton > a:active { transform:translateY(0); }
-        .stButton > button:disabled { opacity:.42 !important; transform:none !important; }
+        .stButton > button:hover, .stLinkButton > a:hover, .stDownloadButton > button:hover { border-color:var(--accent) !important; background:var(--accent-soft) !important; color:var(--accent-hover) !important; transform:translateY(-1px); }
+        .stButton > button:active, .stLinkButton > a:active, .stDownloadButton > button:active { transform:translateY(0); }
+        .stButton > button:disabled, .stDownloadButton > button:disabled { opacity:.42 !important; transform:none !important; }
         .stButton > button[kind="primary"] { background:linear-gradient(150deg, var(--accent-hover), var(--accent)) !important; color:var(--accent-ink) !important; border-color:var(--accent) !important; box-shadow:0 8px 20px -8px var(--accent-glow) !important; }
         .stButton > button[kind="primary"]:hover { filter:brightness(1.06); color:var(--accent-ink) !important; }
-        .stButton > button:focus-visible, .stLinkButton > a:focus-visible { outline:3px solid var(--focus) !important; outline-offset:2px; }
+        .stButton > button:focus-visible, .stLinkButton > a:focus-visible, .stDownloadButton > button:focus-visible { outline:3px solid var(--focus) !important; outline-offset:2px; }
 
         div[data-baseweb="select"] > div, [data-testid="stDateInput"] input,
         [data-testid="stNumberInput"] input, .stTextInput input {
@@ -399,6 +399,17 @@ def inject_css():
         .card-link:hover { color:var(--accent-hover) !important; text-decoration:underline; }
         .embed-wrap { overflow:hidden; border-radius:var(--radius-lg); border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow-md); }
         .small-muted { color:var(--text-faint); font-size:.76rem; }
+
+        /* Active-filter summary chips */
+        .filter-summary { display:flex; flex-wrap:wrap; gap:.45rem; margin:.15rem 0 1.05rem; }
+        .filter-chip { display:inline-flex; align-items:center; gap:.45rem; padding:.32rem .7rem; border:1px solid var(--border); border-radius:999px; background:linear-gradient(180deg, var(--surface-raised), var(--surface)); color:var(--text-soft); font-size:.77rem; font-weight:560; box-shadow:var(--shadow-sm); }
+        .filter-chip .fc-key { color:var(--accent); font-size:.66rem; text-transform:uppercase; letter-spacing:.06em; font-weight:750; }
+
+        /* Sidebar "at a glance" facts */
+        .sidebar-facts { display:flex; flex-direction:column; gap:.5rem; margin:.3rem 0 .7rem; }
+        .fact-row { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.55rem .75rem; border:1px solid var(--border); border-radius:var(--radius); background:linear-gradient(180deg, var(--surface-raised), var(--surface)); box-shadow:var(--shadow-sm); }
+        .fact-label { color:var(--text-faint); font-size:.7rem; font-weight:650; text-transform:uppercase; letter-spacing:.05em; }
+        .fact-value { color:var(--text); font-size:.82rem; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; }
 
         .pagination-shell { margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border); }
         .pagination-status { text-align:center; color:var(--text-soft); font-size:.8rem; padding-top:.3rem; font-variant-numeric:tabular-nums; }
