@@ -361,7 +361,7 @@ def render_app_view():
 
         render_section("Activity over time", "Daily event volume makes spikes and quiet periods easy to spot.")
         render_timeline(base, section)
-        render_section("Behavior patterns", "Compare activity by hour, weekday, and moon phase.")
+        render_section("Behavior patterns", "The heatmap shows when activity peaks; the breakdowns compare by species, weekday, and moon phase.")
         render_patterns(base, section, include_other, bar_style, time_gran)
 
         render_section("Event register", "A precise, scan-friendly record of the most recent matching events.")

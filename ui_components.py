@@ -87,6 +87,24 @@ _CHART_INK_SOFT = "#9fb0c0"
 _CHART_GRID = "#26333f"
 _CHART_AXIS = "#3a4a5c"
 
+# Sequential ramp for activity heatmaps — dark (quiet) to bright accent (busy).
+_HEAT_RANGE = ["#101922", "#173a4e", "#256a8f", "#54a0cf", "#9fd2f2"]
+# Vega expression that formats an hour-of-day tick (0-23) as a compact 12h label.
+_HOUR_LABEL_EXPR = (
+    "(datum.value % 12 === 0 ? 12 : datum.value % 12) + (datum.value < 12 ? 'a' : 'p')"
+)
+
+
+def _fmt_hour(hour) -> str:
+    """Format an hour-of-day integer (0-23) as a compact label like '5a' or '11p'."""
+    try:
+        hour = int(hour)
+    except (TypeError, ValueError):
+        return str(hour)
+    suffix = "a" if hour < 12 else "p"
+    hour12 = hour % 12 or 12
+    return f"{hour12}{suffix}"
+
 
 def apply_chart_theme(chart: alt.Chart) -> alt.Chart:
     """Apply a cohesive dark-theme styling pass to an Altair chart."""
@@ -587,14 +605,90 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             direction="horizontal",
         ),
     )
-    
+
+    # ---- Species leaderboard: composition at a glance -------------------
+    if section == "Wildlife":
+        species_counts = base[group_col].value_counts()
+        if len(species_counts) > 1:
+            total_events = int(species_counts.sum())
+            lead = species_counts.reset_index()
+            lead.columns = ["Species", "Events"]
+            lead["pct"] = (lead["Events"] / total_events * 100).round(0)
+            lead["label"] = [f"{int(count):,} · {int(pct)}%" for count, pct in zip(lead["Events"], lead["pct"])]
+            lead_domain, lead_range = stable_color_domain(
+                lead["Species"].tolist(), WILDLIFE_PALETTE, pin_other_gray=(not include_other)
+            )
+            lead_bars = (
+                alt.Chart(lead)
+                .mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5, opacity=0.95)
+                .encode(
+                    y=alt.Y("Species:N", sort="-x", title=None),
+                    x=alt.X("Events:Q", title="Events"),
+                    color=alt.Color("Species:N", scale=alt.Scale(domain=lead_domain, range=lead_range), legend=None),
+                    tooltip=[
+                        alt.Tooltip("Species:N", title="Species"),
+                        alt.Tooltip("Events:Q", title="Events"),
+                        alt.Tooltip("pct:Q", title="Share (%)"),
+                    ],
+                )
+            )
+            lead_labels = (
+                alt.Chart(lead)
+                .mark_text(align="left", baseline="middle", dx=6, fontSize=11, font=_CHART_FONT, color=_CHART_INK_SOFT)
+                .encode(y=alt.Y("Species:N", sort="-x"), x=alt.X("Events:Q"), text="label:N")
+            )
+            leaderboard = (lead_bars + lead_labels).properties(height=min(360, 34 * len(lead) + 20))
+            st.markdown("**Most frequent species**")
+            st.altair_chart(apply_chart_theme(leaderboard), width="stretch")
+
+    # ---- Activity heatmap: day-of-week x time-of-day --------------------
+    # One glance answers "when is the ranch busy?" — dark cells are quiet,
+    # bright cells are active. Missing day/time combos are filled with 0 so
+    # the grid reads cleanly rather than showing gaps.
+    heat_index = pd.MultiIndex.from_product(
+        [day_order, sorted(base["time_bin"].dropna().unique().tolist())],
+        names=["day_of_week", "time_bin"],
+    )
+    heat = (
+        base.groupby(["day_of_week", "time_bin"]).size()
+        .reindex(heat_index, fill_value=0)
+        .reset_index(name="Events")
+    )
+    heatmap = (
+        alt.Chart(heat)
+        .mark_rect(cornerRadius=2, stroke="#0e141c", strokeWidth=2)
+        .encode(
+            x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0, labelExpr=_HOUR_LABEL_EXPR)),
+            y=alt.Y("day_of_week:N", title=None, sort=day_order),
+            color=alt.Color(
+                "Events:Q",
+                scale=alt.Scale(range=_HEAT_RANGE),
+                legend=alt.Legend(title="Events", orient="top", direction="horizontal"),
+            ),
+            tooltip=[
+                alt.Tooltip("day_of_week:N", title="Day"),
+                alt.Tooltip("time_bin:O", title=time_title),
+                alt.Tooltip("Events:Q", title="Events"),
+            ],
+        )
+        .properties(height=250)
+    )
+    st.markdown("**Activity heatmap — when the ranch is busy**")
+    st.altair_chart(apply_chart_theme(heatmap), width="stretch")
+    if heat["Events"].max() > 0:
+        peak = heat.loc[heat["Events"].idxmax()]
+        st.caption(
+            f"Busiest window: **{peak['day_of_week']}s** around **{_fmt_hour(peak['time_bin'])}** "
+            f"— {int(peak['Events']):,} events in that slot."
+        )
+
     # Time chart
     if bar_style == "Grouped":
         time_chart = (
             alt.Chart(by_time)
             .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
-                x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0)),
+                x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0, labelExpr=_HOUR_LABEL_EXPR)),
                 y=alt.Y("Sightings:Q", title="Count"),
                 color=color_enc,
                 xOffset="animal_group:N",
@@ -611,7 +705,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             alt.Chart(by_time)
             .mark_bar(opacity=0.9, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
             .encode(
-                x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0)),
+                x=alt.X("time_bin:O", title=time_title, axis=alt.Axis(labelAngle=0, labelExpr=_HOUR_LABEL_EXPR)),
                 y=alt.Y("Sightings:Q", title="Count"),
                 color=color_enc,
                 tooltip=[
@@ -703,22 +797,22 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             # Render all three charts
             cA, cB = st.columns(2)
             with cA:
-                st.markdown("**By Time of Day**")
+                st.markdown("**Breakdown by time of day**")
                 st.altair_chart(apply_chart_theme(time_chart), width="stretch")
             with cB:
-                st.markdown("**By Day of Week**")
+                st.markdown("**Breakdown by day of week**")
                 st.altair_chart(apply_chart_theme(day_chart), width="stretch")
             
-            st.markdown("**By Moon Phase**")
+            st.markdown("**Breakdown by moon phase**")
             st.altair_chart(apply_chart_theme(moon_chart), width="stretch")
         else:
             # No moon data - just show time and day
             cA, cB = st.columns(2)
             with cA:
-                st.markdown("**By Time of Day**")
+                st.markdown("**Breakdown by time of day**")
                 st.altair_chart(apply_chart_theme(time_chart), width="stretch")
             with cB:
-                st.markdown("**By Day of Week**")
+                st.markdown("**Breakdown by day of week**")
                 st.altair_chart(apply_chart_theme(day_chart), width="stretch")
     else:
         # No moon_phase_clean column - just show time and day
