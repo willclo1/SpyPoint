@@ -2,9 +2,12 @@
 base = "dark"
 primaryColor = "#6EA8D7"
 backgroundColor = "#0B0F14"
-secondaryBackgroundColor = "#111821"
-textColor = "#EDF2F7"
+secondaryBackgroundColor = "#131A22"
+textColor = "#E8EEF4"
 font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
 
 [server]
 headless = true
