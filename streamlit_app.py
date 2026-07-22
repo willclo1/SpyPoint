@@ -67,10 +67,7 @@ def render_header(updated: str):
         <div class="app-header">
           <div class="brand-wrap">
             <div class="brand-mark">RE</div>
-            <div>
-              <div class="brand-name">Ranch Events</div>
-              <div class="brand-kicker">Wildlife intelligence</div>
-            </div>
+            <div class="brand-name">Ranch Events</div>
           </div>
           <div class="sync-pill"><span class="sync-dot"></span> Updated {html.escape(updated)}</div>
         </div>
@@ -80,16 +77,18 @@ def render_header(updated: str):
 
 
 def render_hero(kicker: str, title: str, copy: str, total: int, total_label: str):
+    """Compact page header: a title and one terse line of context.
+
+    Deliberately not a marketing "hero" — no eyebrow, no oversized stat panel.
+    An internal tool should get to the data quickly. The ``total`` lives in the
+    sidebar's data-status block, so it isn't repeated here.
+    """
     st.markdown(
         f"""
-        <section class="page-hero">
-          <div>
-            <div class="eyebrow">{html.escape(kicker)}</div>
-            <div class="hero-title">{html.escape(title)}</div>
-            <div class="hero-copy">{html.escape(copy)}</div>
-          </div>
-          <div class="hero-stat"><strong>{total:,}</strong><span>{html.escape(total_label)}</span></div>
-        </section>
+        <div class="page-head">
+          <h1>{html.escape(title)}</h1>
+          <p>{html.escape(copy)}</p>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -205,10 +204,10 @@ def render_insights(base: pd.DataFrame, section: str):
         top_note = f"{len(base):,} recorded events"
     st.markdown(
         f"""
-        <div class="insight-grid">
-          <div class="insight-card"><div class="insight-label">Most active camera</div><div class="insight-value">{html.escape(str(busiest_camera))}</div><div class="insight-note">{busiest_count:,} matching events</div></div>
-          <div class="insight-card"><div class="insight-label">Leading category</div><div class="insight-value">{html.escape(str(top_label))}</div><div class="insight-note">{html.escape(top_note)}</div></div>
-          <div class="insight-card"><div class="insight-label">Latest activity</div><div class="insight-value">{html.escape(newest_label)}</div><div class="insight-note">Within the selected filters</div></div>
+        <div class="context-bar">
+          <div class="ctx"><span class="ctx-label">Most active camera</span><span class="ctx-value">{html.escape(str(busiest_camera))}</span><span class="ctx-note">{busiest_count:,} events</span></div>
+          <div class="ctx"><span class="ctx-label">Leading</span><span class="ctx-value">{html.escape(str(top_label))}</span><span class="ctx-note">{html.escape(top_note)}</span></div>
+          <div class="ctx"><span class="ctx-label">Latest activity</span><span class="ctx-value">{html.escape(newest_label)}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -294,8 +293,8 @@ def render_app_view():
     if st.session_state.current_view == "dashboard":
         render_hero(
             "Activity overview",
-            "Understand what is moving across the ranch.",
-            "Explore wildlife, people, and vehicle patterns across time, temperature, cameras, and moon phases.",
+            "Activity overview",
+            "Wildlife, people, and vehicle events across time, temperature, cameras, and moon phase.",
             len(df),
             "total recorded events",
         )
@@ -370,9 +369,9 @@ def render_app_view():
 
     elif st.session_state.current_view == "photos":
         render_hero(
-            "Visual archive",
-            "Browse sightings without loading the entire camera library.",
-            "Filter the event log first, then load only the images needed for the current page.",
+            "Photo browser",
+            "Photo browser",
+            "Filter events first, then load only the images needed for the current page.",
             len(df),
             "photos available through event records",
         )
@@ -444,9 +443,9 @@ def render_app_view():
 
     else:
         render_hero(
-            "Event collections",
-            "Open the advanced grouped gallery.",
-            "Use the embedded gallery for grouped sightings and richer event-level browsing.",
+            "Advanced gallery",
+            "Advanced gallery",
+            "Grouped, event-level browsing in the embedded gallery.",
             len(df),
             "events in the source dataset",
         )

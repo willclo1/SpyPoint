@@ -208,24 +208,27 @@ def inject_css():
         html[data-theme="light"], body[data-theme="light"], [data-theme="light"],
         html[data-theme="dark"],  body[data-theme="dark"],  [data-theme="dark"] {
             color-scheme: dark !important;
-            --page: #0B0F14;
-            --surface: #131A22;
-            --surface-raised: #161E27;
-            --surface-muted: #0F151C;
-            --text: #E8EEF4;
-            --text-soft: #A7B4C2;
-            --text-faint: #6F7E8D;
-            --border: #253340;
-            --border-soft: #1C2732;
-            --border-strong: #33465A;
+            /* Near-neutral dark greys (a hint cool, not blue-tinted) with a
+               single steel-blue accent — the palette a real product ships,
+               not a template's saturated navy. */
+            --page: #0C0D0F;
+            --surface: #161719;
+            --surface-raised: #1C1D20;
+            --surface-muted: #101113;
+            --text: #E7E8EA;
+            --text-soft: #9AA0A6;
+            --text-faint: #6A6F76;
+            --border: #26272B;
+            --border-soft: #1E1F22;
+            --border-strong: #34363C;
             --accent: #6EA8D7;
             --accent-hover: #8FC0E6;
             --accent-soft: rgba(110, 168, 215, .12);
-            --accent-ink: #08121C;
+            --accent-ink: #0A0F14;
             --positive: #6FCE97;
-            --focus: rgba(110, 168, 215, .38);
-            --table-header: #18222C;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,.28);
+            --focus: rgba(110, 168, 215, .36);
+            --table-header: #1C1D20;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.30);
             --radius: 8px;
             --radius-lg: 12px;
         }
@@ -249,11 +252,12 @@ def inject_css():
         ::-webkit-scrollbar-track { background: transparent; }
         ::selection { background: var(--accent-soft); color: var(--text); }
 
-        /* Typography does the hierarchy work — size/weight/color, not effects. */
-        h1, h2, h3, h4 { color: var(--text) !important; letter-spacing: -.01em; }
-        h1 { font-size: 1.9rem !important; line-height: 1.18 !important; font-weight: 700 !important; }
-        h2 { font-size: 1.2rem !important; line-height: 1.32 !important; font-weight: 650 !important; }
-        h3 { font-size: .98rem !important; line-height: 1.35 !important; font-weight: 600 !important; }
+        /* Typography carries the hierarchy — size/weight/colour, not effects.
+           Kept restrained: an internal tool doesn't shout. */
+        h1, h2, h3, h4 { color: var(--text) !important; letter-spacing: -.011em; }
+        h1 { font-size: 1.4rem !important; line-height: 1.25 !important; font-weight: 600 !important; }
+        h2 { font-size: 1.05rem !important; line-height: 1.34 !important; font-weight: 600 !important; }
+        h3 { font-size: .92rem !important; line-height: 1.35 !important; font-weight: 600 !important; }
         p, label, .stCaption { color: var(--text-soft); }
 
         [data-testid="stSidebar"] { background: var(--surface-muted); border-right: 1px solid var(--border); }
@@ -261,45 +265,33 @@ def inject_css():
         [data-testid="stSidebar"] h3 { font-size:.72rem !important; text-transform:uppercase; letter-spacing:.07em; color:var(--text-faint) !important; font-weight:700 !important; }
         [data-testid="stSidebar"] [data-testid="stMetric"] { min-height: 0; padding: .85rem 1rem; }
 
-        /* ---- App header: a quiet brand row above a hairline rule -------- */
+        /* ---- App header: a quiet wordmark row above a hairline rule ----- */
         .app-header {
             display:flex; align-items:center; justify-content:space-between; gap:1rem;
-            padding:.6rem 0 1rem; margin-bottom:1.1rem; border-bottom:1px solid var(--border);
+            padding:.5rem 0 .85rem; margin-bottom:1rem; border-bottom:1px solid var(--border);
         }
-        .brand-wrap { display:flex; align-items:center; gap:.75rem; }
+        .brand-wrap { display:flex; align-items:center; gap:.6rem; }
         .brand-mark {
-            width:40px; height:40px; display:grid; place-items:center; border-radius:10px;
-            background:var(--accent); color:var(--accent-ink);
-            font-size:.9rem; font-weight:700; letter-spacing:.02em;
+            width:30px; height:30px; display:grid; place-items:center; border-radius:7px;
+            background:var(--surface-raised); border:1px solid var(--border-strong);
+            color:var(--text-soft); font-size:.72rem; font-weight:600; letter-spacing:.02em;
         }
-        .brand-name { font-size:1rem; font-weight:700; color:var(--text); line-height:1.1; letter-spacing:-.01em; }
-        .brand-kicker { color:var(--text-faint); font-size:.73rem; margin-top:.2rem; }
+        .brand-name { font-size:.92rem; font-weight:600; color:var(--text); line-height:1.1; letter-spacing:-.01em; }
+        .brand-kicker { color:var(--text-faint); font-size:.72rem; margin-top:.12rem; }
         .sync-pill {
-            display:flex; align-items:center; gap:.5rem; color:var(--text-soft); font-size:.78rem; font-weight:500;
-            padding:.38rem .75rem; border:1px solid var(--border); border-radius:999px; background:var(--surface);
+            display:flex; align-items:center; gap:.45rem; color:var(--text-faint); font-size:.76rem; font-weight:500;
         }
-        .sync-dot { width:7px; height:7px; border-radius:50%; background:var(--positive); }
+        .sync-dot { width:6px; height:6px; border-radius:50%; background:var(--positive); }
 
-        /* ---- Page hero: flat panel, hairline border, solid title ------- */
-        .page-hero {
-            display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:2rem; align-items:end;
-            padding:1.35rem 1.5rem; margin:.15rem 0 1.25rem;
-            border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface);
-        }
-        .eyebrow { color:var(--accent); font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
-        .hero-title {
-            font-size:clamp(1.6rem,2.4vw,2.2rem); line-height:1.12; margin:.4rem 0 .55rem; font-weight:700;
-            max-width:820px; color:var(--text);
-        }
-        .hero-copy { max-width:760px; color:var(--text-soft); font-size:.95rem; line-height:1.55; }
-        .hero-stat { text-align:right; padding-left:1.5rem; border-left:1px solid var(--border); }
-        .hero-stat strong { display:block; font-size:1.85rem; color:var(--text); font-variant-numeric:tabular-nums; font-weight:700; letter-spacing:-.02em; }
-        .hero-stat span { color:var(--text-faint); font-size:.75rem; }
+        /* ---- Page head: just a title + one terse line, no hero panel --- */
+        .page-head { margin:.35rem 0 1.25rem; }
+        .page-head h1 { margin:0; }
+        .page-head p { margin:.3rem 0 0; color:var(--text-soft); font-size:.88rem; line-height:1.5; max-width:760px; }
 
-        /* ---- Section headers: quiet label, one accent tick ------------- */
-        .section-heading { display:flex; justify-content:space-between; align-items:end; gap:1rem; margin:2rem 0 .85rem; padding-bottom:.55rem; border-bottom:1px solid var(--border); }
-        .section-heading h2 { margin:0 !important; padding-left:.65rem; border-left:2px solid var(--accent); }
-        .section-heading p { margin:.22rem 0 0; font-size:.84rem; padding-left:.65rem; }
+        /* ---- Section headers: quiet label, no boxes -------------------- */
+        .section-heading { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; margin:2rem 0 .9rem; }
+        .section-heading h2 { margin:0 !important; }
+        .section-heading p { margin:.2rem 0 0; font-size:.82rem; color:var(--text-faint); }
 
         [data-testid="stExpander"] { background:var(--surface); border:1px solid var(--border) !important; border-radius:var(--radius-lg) !important; box-shadow:none !important; overflow:hidden; }
         [data-testid="stExpander"] details { border:0 !important; }
@@ -318,12 +310,13 @@ def inject_css():
         [data-testid="stMetricValue"] { color:var(--text) !important; font-size:1.75rem !important; font-weight:700 !important; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
         [data-testid="stMetricDelta"] { color:var(--text-soft) !important; }
 
-        .insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:.75rem 0 1.15rem; }
-        .insight-card { padding:1rem 1.1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); transition:border-color .14s ease; }
-        .insight-card:hover { border-color:var(--border-strong); }
-        .insight-label { color:var(--text-faint); font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-        .insight-value { color:var(--text); font-size:1.02rem; font-weight:700; margin-top:.35rem; letter-spacing:-.01em; }
-        .insight-note { color:var(--text-soft); font-size:.78rem; margin-top:.24rem; }
+        /* ---- Context strip: secondary facts as a quiet inline row, not a
+           second tier of big cards competing with the KPIs above. -------- */
+        .context-bar { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem 1.5rem; padding:.7rem .95rem; margin:.7rem 0 1.15rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-muted); }
+        .ctx { display:flex; align-items:baseline; gap:.5rem; min-width:0; }
+        .ctx-label { color:var(--text-faint); font-size:.75rem; }
+        .ctx-value { color:var(--text); font-size:.83rem; font-weight:600; }
+        .ctx-note { color:var(--text-faint); font-size:.75rem; }
 
         /* ---- Buttons: flat surfaces; primary is a solid accent fill ---- */
         .stButton > button, .stLinkButton > a, .stDownloadButton > button {
@@ -359,14 +352,16 @@ def inject_css():
         [data-testid="stAlert"] { border-radius:var(--radius); border:1px solid var(--border); background:var(--surface); color:var(--text); box-shadow:none; }
         hr { border-color:var(--border) !important; }
 
-        /* ---- View switcher: flat sticky bar, solid accent on active ---- */
+        /* ---- View switcher: understated segmented tabs ----------------
+           Active tab is a quiet raised segment with an accent underline —
+           reads more "product nav" than a punchy filled pill. */
         [data-testid="stSegmentedControl"] {
-            position:sticky; top:.5rem; z-index:20; padding:.28rem; margin:.1rem 0 1.15rem;
-            border:1px solid var(--border); border-radius:10px; background:var(--surface);
+            position:sticky; top:.5rem; z-index:20; padding:.25rem; margin:.1rem 0 1.15rem; width:max-content;
+            border:1px solid var(--border); border-radius:9px; background:var(--surface);
         }
-        [data-testid="stSegmentedControl"] button { min-height:38px; border-radius:7px !important; color:var(--text-soft) !important; font-weight:600 !important; transition:background .14s ease, color .14s ease; }
+        [data-testid="stSegmentedControl"] button { min-height:34px; border-radius:6px !important; color:var(--text-soft) !important; font-weight:500 !important; transition:background .14s ease, color .14s ease; }
         [data-testid="stSegmentedControl"] button:hover { background:var(--surface-raised) !important; color:var(--text) !important; }
-        [data-testid="stSegmentedControl"] button[aria-checked="true"] { background:var(--accent) !important; color:var(--accent-ink) !important; }
+        [data-testid="stSegmentedControl"] button[aria-checked="true"] { background:var(--surface-raised) !important; color:var(--text) !important; box-shadow:inset 0 -2px 0 var(--accent) !important; }
 
         .gallery-summary { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.7rem 1rem; margin:.6rem 0 1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text-soft); font-size:.82rem; }
         .gallery-summary strong { color:var(--text); font-size:1rem; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -417,9 +412,7 @@ def inject_css():
 
         @media (max-width:900px) {
             .main .block-container { padding:.85rem .9rem 3rem; }
-            .page-hero { grid-template-columns:1fr; gap:.9rem; padding:1.15rem; }
-            .hero-stat { text-align:left; padding-left:0; padding-top:.8rem; border-left:0; border-top:1px solid var(--border); }
-            .insight-grid { grid-template-columns:1fr; }
+            .context-bar { flex-direction:column; align-items:flex-start; gap:.5rem; }
             .sync-pill { display:none; }
         }
         </style>
