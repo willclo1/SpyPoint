@@ -187,6 +187,24 @@ def render_event_register(base: pd.DataFrame, section: str):
             key=f"download_register_{section}",
         )
 
+def render_stat_strip(items):
+    """Render headline figures as one cohesive bar split by hairlines.
+
+    ``items`` is a list of ``(label, value, sub)`` tuples; ``sub`` may be None.
+    Grouping the KPIs into a single instrument panel reads far more finished
+    than a row of separate, mostly-empty metric boxes.
+    """
+    cells = []
+    for label, value, sub in items:
+        sub_html = f'<div class="stat-sub">{html.escape(str(sub))}</div>' if sub else ""
+        cells.append(
+            f'<div class="stat-cell">'
+            f'<div class="stat-label">{html.escape(str(label))}</div>'
+            f'<div class="stat-value">{html.escape(str(value))}</div>{sub_html}</div>'
+        )
+    st.markdown(f'<div class="stat-strip">{"".join(cells)}</div>', unsafe_allow_html=True)
+
+
 def render_insights(base: pd.DataFrame, section: str):
     if base.empty:
         return
@@ -351,11 +369,12 @@ def render_app_view():
         avg_temp = base["temp_f"].mean()
         peak = base["datetime"].dt.hour.mode()
         peak_label = "—" if peak.empty else pd.Timestamp(2000, 1, 1, int(peak.iloc[0])).strftime("%-I %p")
-        k1, k2, k3, k4 = st.columns(4, gap="large")
-        k1.metric("Matching events", f"{len(base):,}")
-        k2.metric("Active cameras", f"{active_cameras:,}")
-        k3.metric("Average temperature", "—" if pd.isna(avg_temp) else f"{avg_temp:.0f}°F")
-        k4.metric("Peak activity", peak_label)
+        render_stat_strip([
+            ("Matching events", f"{len(base):,}", section),
+            ("Active cameras", f"{active_cameras:,}", None),
+            ("Avg. temperature", "—" if pd.isna(avg_temp) else f"{avg_temp:.0f}°F", None),
+            ("Peak activity", peak_label, "busiest hour"),
+        ])
         render_insights(base, section)
 
         render_section("Activity over time", "Daily event volume makes spikes and quiet periods easy to spot.")

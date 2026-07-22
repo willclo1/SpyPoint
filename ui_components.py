@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 import re
+from contextlib import contextmanager
 from typing import Dict, Tuple, List
 
 import altair as alt
@@ -310,6 +311,26 @@ def inject_css():
         [data-testid="stMetricValue"] { color:var(--text) !important; font-size:1.75rem !important; font-weight:700 !important; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
         [data-testid="stMetricDelta"] { color:var(--text-soft) !important; }
 
+        /* ---- KPI stat strip: one cohesive bar of numbers -------------
+           Four (or more) figures share a single card, split by hairlines,
+           so the headline metrics read as one instrument panel rather than
+           a row of mostly-empty boxes. */
+        .stat-strip { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); overflow:hidden; margin:.35rem 0 1rem; box-shadow:var(--shadow-sm); }
+        .stat-cell { padding:1rem 1.3rem; border-left:1px solid var(--border); }
+        .stat-cell:first-child { border-left:0; }
+        .stat-label { color:var(--text-faint); font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+        .stat-value { color:var(--text); font-size:1.7rem; font-weight:650; font-variant-numeric:tabular-nums; letter-spacing:-.02em; margin-top:.45rem; line-height:1; }
+        .stat-sub { color:var(--text-soft); font-size:.76rem; margin-top:.45rem; }
+        @media (max-width:820px) { .stat-strip { grid-auto-flow:row; grid-auto-columns:auto; grid-template-columns:1fr 1fr; }
+            .stat-cell:nth-child(2) { border-left:1px solid var(--border); }
+            .stat-cell:nth-child(odd) { border-left:0; } .stat-cell:nth-child(n+3) { border-top:1px solid var(--border); } }
+
+        /* ---- Chart cards: uniform chrome for every plot in the grid ---- */
+        [data-testid="stVerticalBlockBorderWrapper"] { border:1px solid var(--border) !important; border-radius:var(--radius-lg) !important; background:var(--surface); box-shadow:var(--shadow-sm); }
+        .chart-head { display:flex; align-items:baseline; justify-content:space-between; gap:.75rem; margin:.1rem 0 .6rem; }
+        .chart-title { color:var(--text); font-size:.9rem; font-weight:600; letter-spacing:-.005em; }
+        .chart-sub { color:var(--text-faint); font-size:.75rem; }
+
         /* ---- Context strip: secondary facts as a quiet inline row, not a
            second tier of big cards competing with the KPIs above. -------- */
         .context-bar { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem 1.5rem; padding:.7rem .95rem; margin:.7rem 0 1.15rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-muted); }
@@ -421,6 +442,24 @@ def inject_css():
     )
 
 
+@contextmanager
+def _card(title: str | None = None, subtitle: str | None = None):
+    """A bordered chart card with an optional header row.
+
+    Uniform chrome for every plot lets a page of charts read as one grid
+    rather than a stack of loose panels. Used as a context manager so the
+    caller renders its chart(s) directly inside.
+    """
+    with st.container(border=True):
+        if title:
+            sub = f'<span class="chart-sub">{html.escape(subtitle)}</span>' if subtitle else ""
+            st.markdown(
+                f'<div class="chart-head"><span class="chart-title">{html.escape(title)}</span>{sub}</div>',
+                unsafe_allow_html=True,
+            )
+        yield
+
+
 def render_timeline(base: pd.DataFrame, section: str):
     """
     Daily timeline with MULTIPLE trend lines when ≤4 species selected.
@@ -429,15 +468,16 @@ def render_timeline(base: pd.DataFrame, section: str):
     if base.empty or "datetime" not in base.columns:
         st.info("No timeline data available")
         return
-    
-    # Determine if we should show individual lines
+
+    chart = None
+    caption = None
+
+    # Individual trend lines when a small number of species is in view.
     if section == "Wildlife" and "wildlife_label" in base.columns:
         unique_species = base["wildlife_label"].nunique()
         species_list = base["wildlife_label"].unique().tolist()
-        
-        # Show individual lines if 4 or fewer species
-        if unique_species <= 4 and unique_species > 0:
-            # Create daily counts by species
+
+        if 0 < unique_species <= 4:
             daily_by_species = (
                 base.groupby([base["datetime"].dt.date, "wildlife_label"])
                 .size()
@@ -445,15 +485,13 @@ def render_timeline(base: pd.DataFrame, section: str):
             )
             daily_by_species.columns = ["Date", "Species", "Events"]
             daily_by_species["Date"] = pd.to_datetime(daily_by_species["Date"])
-            
-            # Get stable colors for species
+
             domain, color_range = stable_color_domain(
                 species_list,
                 WILDLIFE_PALETTE,
                 pin_other_gray=("Other" in species_list),
             )
-            
-            # Create multi-line chart
+
             chart = (
                 alt.Chart(daily_by_species)
                 .mark_line(
@@ -467,11 +505,7 @@ def render_timeline(base: pd.DataFrame, section: str):
                     color=alt.Color(
                         "Species:N",
                         scale=alt.Scale(domain=domain, range=color_range),
-                        legend=alt.Legend(
-                            title="Species",
-                            orient="top",
-                            direction="horizontal",
-                        ),
+                        legend=alt.Legend(title="Species", orient="top", direction="horizontal"),
                     ),
                     tooltip=[
                         alt.Tooltip("Date:T", title="Date", format="%B %d, %Y"),
@@ -479,39 +513,38 @@ def render_timeline(base: pd.DataFrame, section: str):
                         alt.Tooltip("Events:Q", title="Events"),
                     ],
                 )
-                .properties(height=350)
+                .properties(height=320)
             )
-            
-            st.altair_chart(apply_chart_theme(chart), width="stretch")
-            st.caption(f"Showing individual trend lines for {unique_species} species")
-            return
-    
-    # Default: Aggregated area chart
-    daily = base.groupby(base["datetime"].dt.date).size().reset_index(name="Events")
-    daily.columns = ["Date", "Events"]
-    daily["Date"] = pd.to_datetime(daily["Date"])
-    
-    color = SECTION_COLORS.get(section.lower(), PALETTE["green"])
-    
-    chart = (
-        alt.Chart(daily)
-        .mark_area(
-            line={"color": color, "strokeWidth": 2.25},
-            color=color,
-            opacity=0.24,
+            caption = f"Individual trend lines for {unique_species} species"
+
+    # Default: aggregated area chart.
+    if chart is None:
+        daily = base.groupby(base["datetime"].dt.date).size().reset_index(name="Events")
+        daily.columns = ["Date", "Events"]
+        daily["Date"] = pd.to_datetime(daily["Date"])
+        color = SECTION_COLORS.get(section.lower(), PALETTE["green"])
+        chart = (
+            alt.Chart(daily)
+            .mark_area(
+                line={"color": color, "strokeWidth": 2.25},
+                color=color,
+                opacity=0.24,
+            )
+            .encode(
+                x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=0)),
+                y=alt.Y("Events:Q", title="Event Count"),
+                tooltip=[
+                    alt.Tooltip("Date:T", title="Date", format="%B %d, %Y"),
+                    alt.Tooltip("Events:Q", title="Events"),
+                ],
+            )
+            .properties(height=320)
         )
-        .encode(
-            x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%b %d", labelAngle=0)),
-            y=alt.Y("Events:Q", title="Event Count"),
-            tooltip=[
-                alt.Tooltip("Date:T", title="Date", format="%B %d, %Y"),
-                alt.Tooltip("Events:Q", title="Events"),
-            ],
-        )
-        .properties(height=350)
-    )
-    
-    st.altair_chart(apply_chart_theme(chart), width="stretch")
+
+    with _card():
+        st.altair_chart(apply_chart_theme(chart), width="stretch")
+        if caption:
+            st.caption(caption)
 
 
 def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_style: str, time_gran: str):
@@ -566,6 +599,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
     )
 
     # ---- Species leaderboard: composition at a glance -------------------
+    leaderboard = None
     if section == "Wildlife":
         species_counts = base[group_col].value_counts()
         if len(species_counts) > 1:
@@ -579,7 +613,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
             )
             lead_bars = (
                 alt.Chart(lead)
-                .mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5, opacity=0.95)
+                .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, opacity=0.95)
                 .encode(
                     y=alt.Y("Species:N", sort="-x", title=None),
                     x=alt.X("Events:Q", title="Events"),
@@ -596,9 +630,7 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
                 .mark_text(align="left", baseline="middle", dx=6, fontSize=11, font=_CHART_FONT, color=_CHART_INK_SOFT)
                 .encode(y=alt.Y("Species:N", sort="-x"), x=alt.X("Events:Q"), text="label:N")
             )
-            leaderboard = (lead_bars + lead_labels).properties(height=min(360, 34 * len(lead) + 20))
-            st.markdown("**Most frequent species**")
-            st.altair_chart(apply_chart_theme(leaderboard), width="stretch")
+            leaderboard = (lead_bars + lead_labels).properties(height=min(340, 32 * len(lead) + 20))
 
     # ---- Activity heatmap: day-of-week x time-of-day --------------------
     # One glance answers "when is the ranch busy?" — dark cells are quiet,
@@ -632,11 +664,10 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         )
         .properties(height=250)
     )
-    st.markdown("**Activity heatmap — when the ranch is busy**")
-    st.altair_chart(apply_chart_theme(heatmap), width="stretch")
+    heat_caption = None
     if heat["Events"].max() > 0:
         peak = heat.loc[heat["Events"].idxmax()]
-        st.caption(
+        heat_caption = (
             f"Busiest window: **{peak['day_of_week']}s** around **{_fmt_hour(peak['time_bin'])}** "
             f"— {int(peak['Events']):,} events in that slot."
         )
@@ -712,76 +743,57 @@ def render_patterns(base: pd.DataFrame, section: str, include_other: bool, bar_s
         )
     
     # Moon phase chart (if available)
+    moon_chart = None
     if "moon_phase_clean" in base.columns and base["moon_phase_clean"].notna().any():
-        moon_order = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous", 
+        moon_order = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous",
                       "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"]
         by_moon = base.groupby(["moon_phase_clean", group_col]).size().reset_index(name="Sightings")
         by_moon.columns = ["moon_phase_clean", "animal_group", "Sightings"]
-        
+
         if by_moon["moon_phase_clean"].notna().any():
+            moon_kwargs = dict(
+                y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
+                x=alt.X("Sightings:Q", title="Count"),
+                color=color_enc,
+                tooltip=[
+                    alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
+                    alt.Tooltip("animal_group:N", title=section),
+                    alt.Tooltip("Sightings:Q", title="Count"),
+                ],
+            )
             if bar_style == "Grouped":
-                moon_chart = (
-                    alt.Chart(by_moon)
-                    .mark_bar(opacity=0.9, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
-                    .encode(
-                        y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
-                        x=alt.X("Sightings:Q", title="Count"),
-                        color=color_enc,
-                        yOffset="animal_group:N",
-                        tooltip=[
-                            alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
-                            alt.Tooltip("animal_group:N", title=section),
-                            alt.Tooltip("Sightings:Q", title="Count"),
-                        ],
-                    )
-                    .properties(height=280)
-                )
-            else:
-                moon_chart = (
-                    alt.Chart(by_moon)
-                    .mark_bar(opacity=0.9, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
-                    .encode(
-                        y=alt.Y("moon_phase_clean:N", title="Moon Phase", sort=moon_order),
-                        x=alt.X("Sightings:Q", title="Count"),
-                        color=color_enc,
-                        tooltip=[
-                            alt.Tooltip("moon_phase_clean:N", title="Moon Phase"),
-                            alt.Tooltip("animal_group:N", title=section),
-                            alt.Tooltip("Sightings:Q", title="Count"),
-                        ],
-                    )
-                    .properties(height=280)
-                )
-            
-            # Render all three charts
-            cA, cB = st.columns(2)
-            with cA:
-                st.markdown("**Breakdown by time of day**")
-                st.altair_chart(apply_chart_theme(time_chart), width="stretch")
-            with cB:
-                st.markdown("**Breakdown by day of week**")
-                st.altair_chart(apply_chart_theme(day_chart), width="stretch")
-            
-            st.markdown("**Breakdown by moon phase**")
-            st.altair_chart(apply_chart_theme(moon_chart), width="stretch")
-        else:
-            # No moon data - just show time and day
-            cA, cB = st.columns(2)
-            with cA:
-                st.markdown("**Breakdown by time of day**")
-                st.altair_chart(apply_chart_theme(time_chart), width="stretch")
-            with cB:
-                st.markdown("**Breakdown by day of week**")
-                st.altair_chart(apply_chart_theme(day_chart), width="stretch")
-    else:
-        # No moon_phase_clean column - just show time and day
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**By Time of Day**")
-            st.altair_chart(apply_chart_theme(time_chart), width="stretch")
-        with cB:
-            st.markdown("**By Day of Week**")
-            st.altair_chart(apply_chart_theme(day_chart), width="stretch")
+                moon_kwargs["yOffset"] = "animal_group:N"
+            moon_chart = (
+                alt.Chart(by_moon)
+                .mark_bar(opacity=0.9, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
+                .encode(**moon_kwargs)
+                .properties(height=280)
+            )
+
+    # ---- Render: a bento grid of chart cards ---------------------------
+    # Small breakdowns flow two-up; the day×time heatmap takes the full
+    # width it needs to stay legible. Uniform card chrome makes the whole
+    # section read as one instrument panel.
+    tiles = []
+    if leaderboard is not None:
+        tiles.append(("Most frequent species", leaderboard))
+    tiles.append((f"By {time_title.lower()}", time_chart))
+    tiles.append(("By day of week", day_chart))
+    if moon_chart is not None:
+        tiles.append(("By moon phase", moon_chart))
+
+    for i in range(0, len(tiles), 2):
+        row = tiles[i:i + 2]
+        cols = st.columns(len(row), gap="medium")
+        for col, (title, chart) in zip(cols, row):
+            with col:
+                with _card(title):
+                    st.altair_chart(apply_chart_theme(chart), width="stretch")
+
+    with _card("Activity heatmap", "day of week × time of day"):
+        st.altair_chart(apply_chart_theme(heatmap), width="stretch")
+        if heat_caption:
+            st.caption(heat_caption)
 
 
 # =============================================================================
